@@ -1,5 +1,5 @@
-#ifndef MEMFAULT_H
-#define MEMFAULT_H
+#ifndef PMF_H
+#define PMF_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 // Poison pointer definition
-#define MF_POISON_PTR ((void*)0xDEADBEEF)
+#define PMF_POISON_PTR ((void*)0xDEADBEEF)
 
-// MemFault profiling and simulation context
+// Pron MF profiling and simulation context
 typedef struct {
     int fd;                       // Device file descriptor (for kernel mode)
     int failure_rate;             // Failure rate percentage (0 to 100)
@@ -23,22 +23,22 @@ typedef struct {
     void* sim_inner_space;        // The "Inner Space" (Application Pool)
     size_t sim_inner_size;        // Size of Application Pool
     size_t sim_offset;            // Bump allocator offset in Inner Space
-} MFContext;
+} PMFContext;
 
 // Public SDK API Functions
-int mfInit(MFContext* ctx);
-int mfLoadProfile(MFContext* ctx, const char* profile_path);
-int mfStartProfiling(MFContext* ctx);
-void* mf_malloc(MFContext* ctx, size_t size);
-void mf_free(MFContext* ctx, void* ptr);
-int mfShutdown(MFContext* ctx);
-int mfEnableAllocationFailure(MFContext* ctx, int failure_rate);
+int pmfInit(PMFContext* ctx);
+int pmfLoadProfile(PMFContext* ctx, const char* profile_path);
+int pmfStartProfiling(PMFContext* ctx);
+void* pmf_malloc(PMFContext* ctx, size_t size);
+void pmf_free(PMFContext* ctx, void* ptr);
+int pmfShutdown(PMFContext* ctx);
+int pmfEnableAllocationFailure(PMFContext* ctx, int failure_rate);
 
 // Telemetry and simulation verification functions
-int mfSimulateAccess(MFContext* ctx, void* ptr);
+int pmfSimulateAccess(PMFContext* ctx, void* ptr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // MEMFAULT_H
+#endif // PMF_H

@@ -1,66 +1,66 @@
-#ifndef MEMFAULT_HPP
-#define MEMFAULT_HPP
+#ifndef PRONMF_HPP
+#define PRONMF_HPP
 
-#include <memfault/memfault.h>
+#include <pmf/pmf.h>
 #include <stdexcept>
 #include <string>
 
-namespace memfault {
+namespace pronmf {
 
-class MemFaultContext {
+class PronMFContext {
 private:
-    MFContext ctx;
+    PMFContext ctx;
     bool initialized;
 
 public:
-    MemFaultContext() : initialized(false) {
-        if (mfInit(&ctx) != 0) {
-            throw std::runtime_error("Failed to initialize MemFault Context");
+    PronMFContext() : initialized(false) {
+        if (pmfInit(&ctx) != 0) {
+            throw std::runtime_error("Failed to initialize Pron MF Context");
         }
         initialized = true;
     }
 
-    ~MemFaultContext() {
+    ~PronMFContext() {
         if (initialized) {
-            mfShutdown(&ctx);
+            pmfShutdown(&ctx);
         }
     }
 
     void loadProfile(const std::string& profile_path) {
-        if (mfLoadProfile(&ctx, profile_path.c_str()) != 0) {
+        if (pmfLoadProfile(&ctx, profile_path.c_str()) != 0) {
             throw std::runtime_error("Failed to load fault profile: " + profile_path);
         }
     }
 
     void startProfiling() {
-        if (mfStartProfiling(&ctx) != 0) {
+        if (pmfStartProfiling(&ctx) != 0) {
             throw std::runtime_error("Failed to start profiling");
         }
     }
 
     void enableAllocationFailure(int failure_rate) {
-        if (mfEnableAllocationFailure(&ctx, failure_rate) != 0) {
+        if (pmfEnableAllocationFailure(&ctx, failure_rate) != 0) {
             throw std::runtime_error("Failed to enable allocation failure");
         }
     }
 
     void* allocate(size_t size) {
-        return mf_malloc(&ctx, size);
+        return pmf_malloc(&ctx, size);
     }
 
     void deallocate(void* ptr) {
-        mf_free(&ctx, ptr);
+        pmf_free(&ctx, ptr);
     }
 
     int simulateAccess(void* ptr) {
-        return mfSimulateAccess(&ctx, ptr);
+        return pmfSimulateAccess(&ctx, ptr);
     }
 
-    MFContext* getRawContext() {
+    PMFContext* getRawContext() {
         return &ctx;
     }
 };
 
-} // namespace memfault
+} // namespace pronmf
 
-#endif // MEMFAULT_HPP
+#endif // PRONMF_HPP

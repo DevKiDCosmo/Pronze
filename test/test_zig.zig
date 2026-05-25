@@ -1,17 +1,17 @@
 const std = @import("std");
-const memfault = @import("../sdk/zig/memfault.zig");
+const pronmf = @import("pronmf.zig");
 
 pub fn main() !void {
-    const stdout = std::io::getStdOut().writer();
+    const stdout = std.io.getStdOut().writer();
     try stdout.print("[+] Starting Zig SDK verification test...\n", .{});
     
-    var mf = try memfault.MemFault.init();
+    var mf = try pronmf.PronMF.init();
     defer mf.deinit();
     
     // 1. Allocate block
     const ptr = mf.malloc(512) orelse {
         try stdout.print("[-] Error: Failed to allocate memory block inside container pool\n", .{});
-        std::process.exit(1);
+        std.process.exit(1);
     };
     defer mf.free(ptr);
     
@@ -20,7 +20,7 @@ pub fn main() !void {
     try stdout.print("[+] Zig valid access test: status = {} (Expected: 0)\n", .{status_valid});
     if (status_valid != 0) {
         try stdout.print("[-] Error: Valid pointer access verification failed\n", .{});
-        std::process.exit(1);
+        std.process.exit(1);
     }
     
     // 3. Verify critical sandbox violation
@@ -29,7 +29,7 @@ pub fn main() !void {
     try stdout.print("[+] Zig invalid access test: status = {} (Expected: -2)\n", .{status_invalid});
     if (status_invalid != -2) {
         try stdout.print("[-] Error: Out-of-sandbox critical fault check failed\n", .{});
-        std::process.exit(1);
+        std.process.exit(1);
     }
     
     try stdout.print("[+] Verification SUCCESS: All Zig SDK tests passed.\n", .{});

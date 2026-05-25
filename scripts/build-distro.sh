@@ -141,19 +141,24 @@ make -j"$(nproc)"
 echo "[✔] Done: kernel bzImage compiled"
 
 # 6. Build out-of-tree Kernel Driver Module
-echo -e "\n[+] 6/11 Compiling out-of-tree memfault_core kernel module..."
+echo -e "\n[+] 6/11 Compiling out-of-tree pron_mf_core kernel module..."
 cd /workspace
 make -C "$SRC_DIR/linux-$LINUX_VERSION" M=/workspace/kernel modules
-echo "[✔] Done: kernel/memfault_core.ko built successfully"
+echo "[✔] Done: kernel/pron_mf_core.ko built successfully"
 
-# 7. Build C SDK (Shared Library) & tests against musl
+# 7. Build C/C++ SDK (Shared Library) & tests against musl
 echo -e "\n[+] 7/11 Compiling SDK and verification tests against musl..."
 # Compile dynamic C SDK shared library
-musl-gcc -O2 -fPIC -shared -I/workspace/sdk/c/include /workspace/sdk/c/src/memfault.c -o /workspace/sdk/c/src/libmemfault.so
+musl-gcc -O2 -fPIC -shared -Wl,-soname,libpronmemf.so -I/workspace/sdk/c/include /workspace/sdk/c/src/pmf.c -o /workspace/sdk/c/src/libpronmemf.so
 # Compile C verification tests
-musl-gcc -O2 -I/workspace/sdk/c/include /workspace/test/test_alloc.c -L/workspace/sdk/c/src -lmemfault -Wl,-rpath,/usr/lib -o /workspace/test/test_alloc
+musl-gcc -O2 -I/workspace/sdk/c/include /workspace/test/test_alloc.c -L/workspace/sdk/c/src -lpronmemf -Wl,-rpath,/usr/lib -o /workspace/test/test_alloc
 # Compile C++ bounds test
-zig c++ -target x86_64-linux-musl -O2 -I/workspace/sdk/c/include -I/workspace/sdk/cpp/include /workspace/test/test_bounds.cpp -L/workspace/sdk/c/src -lmemfault -Wl,-rpath,/usr/lib -o /workspace/test/test_bounds
+zig c++ -target x86_64-linux-musl -O2 -I/workspace/sdk/c/include -I/workspace/sdk/cpp/include /workspace/test/test_bounds.cpp -L/workspace/sdk/c/src -lpronmemf -Wl,-rpath,/usr/lib -o /workspace/test/test_bounds
+# Compile Zig verification test
+cp /workspace/sdk/zig/pronmf.zig /workspace/test/pronmf.zig
+cd /workspace/test && zig build-exe -target x86_64-linux-musl -O ReleaseSafe /workspace/test/test_zig.zig -lc -L/workspace/sdk/c/src -lpronmemf -I/workspace/sdk/c/include
+# Compile Rust verification test
+cd /workspace/test/test_rust && cargo build --target x86_64-unknown-linux-musl --release
 echo "[✔] Done: SDK & tests compiled"
 
 # 8. Compile Rust Runtime Daemon against musl target
@@ -165,7 +170,7 @@ echo "[✔] Done: daemon built statically targeting x86_64-unknown-linux-musl"
 # 9. Assemble Root Filesystem layout (Btrfs rootfs)
 echo -e "\n[+] 9/11 Assembling rootfs tree structure..."
 rm -rf "$ROOTFS_DIR"/*
-mkdir -p "$ROOTFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,etc/s6-services/memfaultd,kernel,runtime/profiles,usr/lib}
+mkdir -p "$ROOTFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,tmp,etc/s6-services/pronmfd,kernel,runtime/profiles,usr/lib}
 
 # Copy BusyBox files
 cp -av "$SRC_DIR/busybox-$BUSYBOX_VERSION/_install"/* "$ROOTFS_DIR"/
@@ -175,17 +180,19 @@ cp -av /tmp/s6_install/usr/bin/* "$ROOTFS_DIR/usr/bin/"
 cp -av /tmp/s6_install/usr/sbin/* "$ROOTFS_DIR/usr/sbin/" 2>/dev/null || true
 
 
-# Copy s6 memfaultd service run script
-cp -av /workspace/s6/memfaultd/run "$ROOTFS_DIR/etc/s6-services/memfaultd/run"
-chmod +x "$ROOTFS_DIR/etc/s6-services/memfaultd/run"
+# Copy s6 service run script
+cp -av /workspace/s6/pronmfd/run "$ROOTFS_DIR/etc/s6-services/pronmfd/run"
+chmod +x "$ROOTFS_DIR/etc/s6-services/pronmfd/run"
 
 # Copy daemon, SDK, tests, and default profiles
-cp -av /workspace/daemon/target/x86_64-unknown-linux-musl/release/memfaultd "$ROOTFS_DIR/usr/bin/"
-cp -av /workspace/sdk/c/src/libmemfault.so "$ROOTFS_DIR/usr/lib/"
+cp -av /workspace/daemon/target/x86_64-unknown-linux-musl/release/pronmftd "$ROOTFS_DIR/usr/bin/"
+cp -av /workspace/sdk/c/src/libpronmemf.so "$ROOTFS_DIR/usr/lib/"
 cp -av /workspace/test/test_alloc "$ROOTFS_DIR/usr/bin/"
 cp -av /workspace/test/test_bounds "$ROOTFS_DIR/usr/bin/"
+cp -av /workspace/test/test_zig "$ROOTFS_DIR/usr/bin/"
+cp -av /workspace/test/test_rust/target/x86_64-unknown-linux-musl/release/test_rust "$ROOTFS_DIR/usr/bin/"
 cp -av /workspace/profiles/default.mfs "$ROOTFS_DIR/runtime/profiles/"
-cp -av /workspace/kernel/memfault_core.ko "$ROOTFS_DIR/kernel/"
+cp -av /workspace/kernel/pron_mf_core.ko "$ROOTFS_DIR/kernel/"
 
 # Copy musl dynamic linker and standard library
 cp -av /usr/lib/x86_64-linux-musl/libc.so "$ROOTFS_DIR/lib/libc.so"
@@ -220,17 +227,17 @@ mount -t sysfs sysfs /sys
 mount -t devtmpfs devtmpfs /dev || mdev -s
 
 echo "=========================================================="
-echo "          Welcome to MemFaultOS (s6 Supervision)          "
+echo "          Welcome to Pron (s6 Supervision)          "
 echo "=========================================================="
 echo "[+] System Boot Successful. Root filesystem type: Btrfs"
 
-# Load MemFault Core kernel module
-if [ -f /kernel/memfault_core.ko ]; then
-    echo "[+] Loading MemFault Core kernel module..."
-    insmod /kernel/memfault_core.ko
-    mknod /dev/memfault c 240 0
-    chmod 666 /dev/memfault
-    echo "[✔] Registered device node /dev/memfault (major: 240)"
+# Load Pron MF Core kernel module
+if [ -f /kernel/pron_mf_core.ko ]; then
+    echo "[+] Loading Pron MF Core kernel module..."
+    insmod /kernel/pron_mf_core.ko
+    mknod /dev/pron_mf c 240 0
+    chmod 666 /dev/pron_mf
+    echo "[✔] Registered device node /dev/pron_mf (major: 240)"
 fi
 
 # Launch s6 supervisor scans to monitor daemon
@@ -243,6 +250,15 @@ sleep 1.5
 # Run validation checks via SDK allocator test
 echo "[+] Running verification test (C Allocator)..."
 LD_LIBRARY_PATH=/usr/lib /usr/bin/test_alloc
+
+echo -e "\n[+] Running verification test (C++ Bounds Checks)..."
+LD_LIBRARY_PATH=/usr/lib /usr/bin/test_bounds
+
+echo -e "\n[+] Running verification test (Zig SDK FFI)..."
+LD_LIBRARY_PATH=/usr/lib /usr/bin/test_zig
+
+echo -e "\n[+] Running verification test (Rust SDK FFI)..."
+LD_LIBRARY_PATH=/usr/lib /usr/bin/test_rust
 
 # Spawn shell
 echo -e "\nSpawning system terminal shell..."
@@ -266,18 +282,18 @@ mkfs.vfat -F 32 "$WORK_DIR/esp.img"
 mkdir -p "$WORK_DIR/loader/entries"
 
 cat <<EOF > "$WORK_DIR/loader/loader.conf"
-default memfaultos
+default pron
 timeout 3
 EOF
 
-cat <<EOF > "$WORK_DIR/loader/entries/memfaultos.conf"
-title MemFaultOS (Serial Console)
+cat <<EOF > "$WORK_DIR/loader/entries/pron.conf"
+title Pron (Serial Console)
 linux /vmlinuz
 options root=/dev/sda2 rootfstype=btrfs console=tty0 console=ttyS0 init=/init rw
 EOF
 
-cat <<EOF > "$WORK_DIR/loader/entries/memfaultos-gui.conf"
-title MemFaultOS (VGA Graphics)
+cat <<EOF > "$WORK_DIR/loader/entries/pron-gui.conf"
+title Pron (VGA Graphics)
 linux /vmlinuz
 options root=/dev/sda2 rootfstype=btrfs console=ttyS0 console=tty0 init=/init rw
 EOF
@@ -294,29 +310,29 @@ mcopy -i "$WORK_DIR/esp.img" /usr/lib/systemd/boot/efi/systemd-bootx64.efi ::/EF
 mcopy -i "$WORK_DIR/esp.img" "$SRC_DIR/linux-$LINUX_VERSION/arch/x86/boot/bzImage" ::/vmlinuz
 # Copy configuration files
 mcopy -i "$WORK_DIR/esp.img" "$WORK_DIR/loader/loader.conf" ::/loader/loader.conf
-mcopy -i "$WORK_DIR/esp.img" "$WORK_DIR/loader/entries/memfaultos.conf" ::/loader/entries/memfaultos.conf
-mcopy -i "$WORK_DIR/esp.img" "$WORK_DIR/loader/entries/memfaultos-gui.conf" ::/loader/entries/memfaultos-gui.conf
+mcopy -i "$WORK_DIR/esp.img" "$WORK_DIR/loader/entries/pron.conf" ::/loader/entries/pron.conf
+mcopy -i "$WORK_DIR/esp.img" "$WORK_DIR/loader/entries/pron-gui.conf" ::/loader/entries/pron-gui.conf
 
 
 # 12. Create Master UEFI GPT Disk Image
 echo -e "\n[+] Assembling master UEFI GPT disk image..."
-dd if=/dev/zero of="$WORK_DIR/memfaultos.img" bs=1M count=325
+dd if=/dev/zero of="$WORK_DIR/pron.img" bs=1M count=325
 
 # Setup Partition maps
-sfdisk "$WORK_DIR/memfaultos.img" <<EOF
+sfdisk "$WORK_DIR/pron.img" <<EOF
 label: gpt
 part1 : start=2048, size=131072, type=c12a7328-f81f-11d2-ba4b-00a0c93ec93b, name="ESP"
 part2 : start=133120, size=524288, type=0fc63daf-8483-4772-8e79-3d69d8477de4, name="Root"
 EOF
 
 # Write partitions
-dd if="$WORK_DIR/esp.img" of="$WORK_DIR/memfaultos.img" bs=1M seek=1 conv=notrunc
-dd if="$WORK_DIR/rootfs.img" of="$WORK_DIR/memfaultos.img" bs=1M seek=65 conv=notrunc
+dd if="$WORK_DIR/esp.img" of="$WORK_DIR/pron.img" bs=1M seek=1 conv=notrunc
+dd if="$WORK_DIR/rootfs.img" of="$WORK_DIR/pron.img" bs=1M seek=65 conv=notrunc
 
 # Export Image
-cp "$WORK_DIR/memfaultos.img" "$OUTPUT_DIR/memfaultos.img"
+cp "$WORK_DIR/pron.img" "$OUTPUT_DIR/pron.img"
 
 echo "=========================================================="
-echo "     MemFaultOS UEFI Btrfs Image Generated Successfully!  "
-echo "     Image path: $OUTPUT_DIR/memfaultos.img               "
+echo "     Pron UEFI Btrfs Image Generated Successfully!        "
+echo "     Image path: $OUTPUT_DIR/pron.img                     "
 echo "=========================================================="

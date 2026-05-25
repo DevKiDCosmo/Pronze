@@ -2,10 +2,10 @@ use std::os::raw::{c_char, c_int, c_void};
 use std::ffi::CString;
 use std::ptr;
 
-// Replicate the C MFContext struct layout
+// Replicate the C PMFContext struct layout
 #[repr(C)]
 #[derive(Debug)]
-pub struct MFContext {
+pub struct PMFContext {
     pub fd: c_int,
     pub failure_rate: c_int,
     pub simulation_mode: c_int,
@@ -16,9 +16,9 @@ pub struct MFContext {
     pub sim_offset: usize,
 }
 
-impl Default for MFContext {
+impl Default for PMFContext {
     fn default() -> Self {
-        MFContext {
+        PMFContext {
             fd: -1,
             failure_rate: 0,
             simulation_mode: 1,
@@ -32,29 +32,29 @@ impl Default for MFContext {
 }
 
 extern "C" {
-    pub fn mfInit(ctx: *mut MFContext) -> c_int;
-    pub fn mfLoadProfile(ctx: *mut MFContext, profile_path: *const c_char) -> c_int;
-    pub fn mfStartProfiling(ctx: *mut MFContext) -> c_int;
-    pub fn mf_malloc(ctx: *mut MFContext, size: usize) -> *mut c_void;
-    pub fn mf_free(ctx: *mut MFContext, ptr: *mut c_void);
-    pub fn mfShutdown(ctx: *mut MFContext) -> c_int;
-    pub fn mfEnableAllocationFailure(ctx: *mut MFContext, failure_rate: c_int) -> c_int;
-    pub fn mfSimulateAccess(ctx: *mut MFContext, ptr: *mut c_void) -> c_int;
+    pub fn pmfInit(ctx: *mut PMFContext) -> c_int;
+    pub fn pmfLoadProfile(ctx: *mut PMFContext, profile_path: *const c_char) -> c_int;
+    pub fn pmfStartProfiling(ctx: *mut PMFContext) -> c_int;
+    pub fn pmf_malloc(ctx: *mut PMFContext, size: usize) -> *mut c_void;
+    pub fn pmf_free(ctx: *mut PMFContext, ptr: *mut c_void);
+    pub fn pmfShutdown(ctx: *mut PMFContext) -> c_int;
+    pub fn pmfEnableAllocationFailure(ctx: *mut PMFContext, failure_rate: c_int) -> c_int;
+    pub fn pmfSimulateAccess(ctx: *mut PMFContext, ptr: *mut c_void) -> c_int;
 }
 
-pub struct MemFault {
-    ctx: Box<MFContext>,
+pub struct PronMF {
+    ctx: Box<PMFContext>,
 }
 
-impl MemFault {
-    /// Initialize the MemFault engine
+impl PronMF {
+    /// Initialize the PronMF engine
     pub fn new() -> Result<Self, &'static str> {
-        let mut ctx = Box::new(MFContext::default());
+        let mut ctx = Box::new(PMFContext::default());
         unsafe {
-            if mfInit(&mut *ctx) == 0 {
-                Ok(MemFault { ctx })
+            if pmfInit(&mut *ctx) == 0 {
+                Ok(PronMF { ctx })
             } else {
-                Err("Failed to initialize MemFault Context")
+                Err("Failed to initialize Pron MF Context")
             }
         }
     }
@@ -63,7 +63,7 @@ impl MemFault {
     pub fn load_profile(&mut self, path: &str) -> Result<(), &'static str> {
         let c_path = CString::new(path).map_err(|_| "Invalid profile path string")?;
         unsafe {
-            if mfLoadProfile(&mut *self.ctx, c_path.as_ptr()) == 0 {
+            if pmfLoadProfile(&mut *self.ctx, c_path.as_ptr()) == 0 {
                 Ok(())
             } else {
                 Err("Failed to load fault profile")
@@ -74,7 +74,7 @@ impl MemFault {
     /// Start trace collection
     pub fn start_profiling(&mut self) -> Result<(), &'static str> {
         unsafe {
-            if mfStartProfiling(&mut *self.ctx) == 0 {
+            if pmfStartProfiling(&mut *self.ctx) == 0 {
                 Ok(())
             } else {
                 Err("Failed to start profiling")
@@ -85,7 +85,7 @@ impl MemFault {
     /// Explicitly override the allocation failure rate (0 to 100)
     pub fn enable_allocation_failure(&mut self, failure_rate: i32) -> Result<(), &'static str> {
         unsafe {
-            if mfEnableAllocationFailure(&mut *self.ctx, failure_rate) == 0 {
+            if pmfEnableAllocationFailure(&mut *self.ctx, failure_rate) == 0 {
                 Ok(())
             } else {
                 Err("Failed to enable allocation failure")
@@ -95,24 +95,24 @@ impl MemFault {
 
     /// Allocate fault-instrumented memory
     pub fn malloc(&mut self, size: usize) -> *mut c_void {
-        unsafe { mf_malloc(&mut *self.ctx, size) }
+        unsafe { pmf_malloc(&mut *self.ctx, size) }
     }
 
     /// Free allocated memory block
     pub fn free(&mut self, ptr: *mut c_void) {
-        unsafe { mf_free(&mut *self.ctx, ptr) }
+        unsafe { pmf_free(&mut *self.ctx, ptr) }
     }
 
     /// Simulate memory access verification (telemetry bounds checks)
     pub fn simulate_access(&mut self, ptr: *mut c_void) -> i32 {
-        unsafe { mfSimulateAccess(&mut *self.ctx, ptr) }
+        unsafe { pmfSimulateAccess(&mut *self.ctx, ptr) }
     }
 }
 
-impl Drop for MemFault {
+impl Drop for PronMF {
     fn drop(&mut self) {
         unsafe {
-            mfShutdown(&mut *self.ctx);
+            pmfShutdown(&mut *self.ctx);
         }
     }
 }

@@ -1,19 +1,19 @@
 #include <stdio.h>
-#include <memfault/memfault.h>
+#include <pmf/pmf.h>
 
 int main() {
-    MFContext ctx;
+    PMFContext ctx;
     printf("[+] Starting C allocation failure verification test...\n");
     
-    if (mfInit(&ctx) != 0) {
+    if (pmfInit(&ctx) != 0) {
         printf("[-] Failed to initialize SDK context\n");
         return 1;
     }
     
     // Enable allocation failure rate at 10%
-    if (mfEnableAllocationFailure(&ctx, 10) != 0) {
+    if (pmfEnableAllocationFailure(&ctx, 10) != 0) {
         printf("[-] Failed to enable allocation failure\n");
-        mfShutdown(&ctx);
+        pmfShutdown(&ctx);
         return 1;
     }
     
@@ -21,12 +21,12 @@ int main() {
     int successes = 0;
     
     for (int i = 0; i < 1000; i++) {
-        void* p = mf_malloc(&ctx, 1024);
+        void* p = pmf_malloc(&ctx, 1024);
         if (!p) {
             failures++;
         } else {
             successes++;
-            mf_free(&ctx, p);
+            pmf_free(&ctx, p);
         }
     }
     
@@ -36,7 +36,7 @@ int main() {
     printf("  - Target Failure Rate: 10.0%%\n");
     printf("  - Measured Failure Rate: %.2f%%\n", (double)failures / 10.0);
     
-    mfShutdown(&ctx);
+    pmfShutdown(&ctx);
     
     // With 1000 trials, the count should fall within [50, 150] (i.e. 5% to 15%) with extremely high probability.
     if (failures >= 50 && failures <= 150) {

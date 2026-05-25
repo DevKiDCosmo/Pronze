@@ -1,0 +1,1 @@
+savedcmd_/workspace/kernel/pron_mf_core.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T scripts/module.lds -o /workspace/kernel/pron_mf_core.ko /workspace/kernel/pron_mf_core.o /workspace/kernel/pron_mf_core.mod.o;  make -f ./arch/x86/Makefile.postlink /workspace/kernel/pron_mf_core.ko

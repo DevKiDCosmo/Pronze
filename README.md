@@ -142,7 +142,26 @@ docker build -t PronKern:latest .
 
 # Run the test suite
 docker run --rm PronKern:latest
+
+
+docker run --rm memfaultos:latest > out.log
+docker build -t memfaultos:latest .
+
+docker run --rm -v $(pwd)/output:/workspace/output memfaultos-builder
+docker run --rm -v "$(pwd):/workspace" -v memfaultos-cache:/opt/memfaultos memfaultos-builder:latest
 ```
+
+### Dev Container for Linux Kernel Module Development
+
+Open the repository in VS Code and choose **Reopen in Container**. The dev container includes the kernel-module build toolchain, Clang/LLVM, `kmod`, `pahole`, and other common utilities for driver work.
+
+Inside the container, build the module with:
+
+```bash
+make -C /lib/modules/$(uname -r)/build M="$PWD/kernel" modules
+```
+
+On Linux hosts, the container can build against the host kernel headers if `/lib/modules/$(uname -r)/build` is available. If that path is missing, mount the matching kernel headers or set `KDIR` manually.
 
 ### Compiling the Linux Kernel with custom config
 

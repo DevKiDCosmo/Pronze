@@ -1,9 +1,9 @@
-use memfault::MemFault;
+use pronmf::PronMF;
 
 fn main() {
     println!("[+] Starting Rust FFI verification test...");
     
-    let mut mf = MemFault::new().expect("Failed to initialize MemFault SDK");
+    let mut mf = PronMF::new().expect("Failed to initialize PronMF SDK");
     
     // 1. Allocate block
     let ptr = mf.malloc(512);

@@ -5,4 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-memfault = { path = "../../sdk/rust" }
+pronmf = { path = "../../sdk/rust" }
+
+[profile.release]
+panic = "abort"

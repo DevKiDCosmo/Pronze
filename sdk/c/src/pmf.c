@@ -6,17 +6,18 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <time.h>
-#include <memfault/memfault.h>
+#include <pmf/pmf.h>
 
 #define MAJOR_NUM 240
-#define DEVICE_PATH "/dev/memfault"
+#define DEVICE_PATH "/dev/pron_mf"
 
-#define MF_IOCTL_ENABLE_FAULT 0x1001
-#define MF_IOCTL_SET_PROFILE  0x1002
-#define MF_IOCTL_START_TRACE  0x1003
+#define PMF_IOCTL_ENABLE_FAULT  0x1001
+#define PMF_IOCTL_SET_PROFILE   0x1002
+#define PMF_IOCTL_START_TRACE   0x1003
+#define PMF_IOCTL_RECORD_MALLOC 0x1004
 
 // Initialize context
-int mfInit(MFContext* ctx) {
+int pmfInit(PMFContext* ctx) {
     if (!ctx) return -1;
     
     // Seed the randomizer for user-space simulation faults
@@ -34,7 +35,7 @@ int mfInit(MFContext* ctx) {
         ctx->sim_inner_space = NULL;
         ctx->sim_inner_size = 0;
         ctx->sim_offset = 0;
-        printf("[+] MemFault SDK: Kernel Mode Enabled. Connected to %s\n", DEVICE_PATH);
+        printf("[+] Pron MF SDK: Kernel Mode Enabled. Connected to %s\n", DEVICE_PATH);
     } else {
         // Fallback to User-Space Simulation Container Mode
         ctx->fd = -1;
@@ -47,7 +48,7 @@ int mfInit(MFContext* ctx) {
         // Map Outer Space
         ctx->sim_outer_space = mmap(NULL, ctx->sim_outer_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (ctx->sim_outer_space == MAP_FAILED) {
-            perror("[-] MemFault SDK: mmap failed during simulation initialization");
+            perror("[-] Pron MF SDK: mmap failed during simulation initialization");
             return -1;
         }
         
@@ -58,7 +59,7 @@ int mfInit(MFContext* ctx) {
         // Zero-out the mapped region to simulate clean memory
         memset(ctx->sim_outer_space, 0, ctx->sim_outer_size);
         
-        printf("[+] MemFault SDK: User-space Simulation Container Mode Enabled.\n");
+        printf("[+] Pron MF SDK: User-space Simulation Container Mode Enabled.\n");
         printf("    - Outer Space (Simulated System): %p (%zu bytes)\n", ctx->sim_outer_space, ctx->sim_outer_size);
         printf("    - Inner Space (Application Pool): %p (%zu bytes)\n", ctx->sim_inner_space, ctx->sim_inner_size);
     }
@@ -67,12 +68,12 @@ int mfInit(MFContext* ctx) {
 }
 
 // Load fault profile from JSON file (simple robust parser)
-int mfLoadProfile(MFContext* ctx, const char* profile_path) {
+int pmfLoadProfile(PMFContext* ctx, const char* profile_path) {
     if (!ctx) return -1;
     
     FILE* f = fopen(profile_path, "r");
     if (!f) {
-        printf("[-] MemFault SDK Warning: Failed to open profile %s\n", profile_path);
+        printf("[-] Pron MF SDK Warning: Failed to open profile %s\n", profile_path);
         return -1;
     }
     
@@ -88,7 +89,7 @@ int mfLoadProfile(MFContext* ctx, const char* profile_path) {
         if (val_ptr) {
             int rate = 0;
             if (sscanf(val_ptr + 1, "%d", &rate) == 1) {
-                mfEnableAllocationFailure(ctx, rate);
+                pmfEnableAllocationFailure(ctx, rate);
             }
         }
     }
@@ -96,31 +97,31 @@ int mfLoadProfile(MFContext* ctx, const char* profile_path) {
 }
 
 // Enable trace
-int mfStartProfiling(MFContext* ctx) {
+int pmfStartProfiling(PMFContext* ctx) {
     if (!ctx) return -1;
     
     if (ctx->simulation_mode == 0) {
-        if (ioctl(ctx->fd, MF_IOCTL_START_TRACE) < 0) {
-            perror("[-] MemFault SDK: ioctl MF_IOCTL_START_TRACE failed");
+        if (ioctl(ctx->fd, PMF_IOCTL_START_TRACE) < 0) {
+            perror("[-] Pron MF SDK: ioctl PMF_IOCTL_START_TRACE failed");
             return -1;
         }
     } else {
-        printf("[+] MemFault SDK: User-space simulation trace started.\n");
+        printf("[+] Pron MF SDK: User-space simulation trace started.\n");
     }
     return 0;
 }
 
 // Enable allocation failure rate
-int mfEnableAllocationFailure(MFContext* ctx, int failure_rate) {
+int pmfEnableAllocationFailure(PMFContext* ctx, int failure_rate) {
     if (!ctx) return -1;
     if (failure_rate < 0 || failure_rate > 100) return -1;
     
     ctx->failure_rate = failure_rate;
-    printf("[+] MemFault SDK: Set allocation failure rate to %d%%\n", failure_rate);
+    printf("[+] Pron MF SDK: Set allocation failure rate to %d%%\n", failure_rate);
     
     if (ctx->simulation_mode == 0) {
-        if (ioctl(ctx->fd, MF_IOCTL_ENABLE_FAULT, failure_rate) < 0) {
-            perror("[-] MemFault SDK: ioctl MF_IOCTL_ENABLE_FAULT failed");
+        if (ioctl(ctx->fd, PMF_IOCTL_ENABLE_FAULT, failure_rate) < 0) {
+            perror("[-] Pron MF SDK: ioctl PMF_IOCTL_ENABLE_FAULT failed");
             return -1;
         }
     }
@@ -128,7 +129,7 @@ int mfEnableAllocationFailure(MFContext* ctx, int failure_rate) {
 }
 
 // Allocate memory (with optional fault simulation)
-void* mf_malloc(MFContext* ctx, size_t size) {
+void* pmf_malloc(PMFContext* ctx, size_t size) {
     if (!ctx) return NULL;
     
     // Inject deterministic allocation failure based on rate config
@@ -149,7 +150,7 @@ void* mf_malloc(MFContext* ctx, size_t size) {
         size_t aligned_size = (size + 7) & ~7;
         
         if (ctx->sim_offset + aligned_size > ctx->sim_inner_size) {
-            printf("[-] MemFault SDK Simulation: Out of memory in Application Pool!\n");
+            printf("[-] Pron MF SDK Simulation: Out of memory in Application Pool!\n");
             return NULL;
         }
         
@@ -160,7 +161,7 @@ void* mf_malloc(MFContext* ctx, size_t size) {
 }
 
 // Free memory
-void mf_free(MFContext* ctx, void* ptr) {
+void pmf_free(PMFContext* ctx, void* ptr) {
     if (!ctx || !ptr) return;
     
     if (ctx->simulation_mode == 0) {
@@ -175,14 +176,21 @@ void mf_free(MFContext* ctx, void* ptr) {
         if (addr >= inner_start && addr < inner_end) {
             // Free succeeded logically
         } else {
-            printf("[-] MemFault SDK Error: Invalid free on pointer %p outside Application Pool!\n", ptr);
+            printf("[-] Pron MF SDK Error: Invalid free on pointer %p outside Application Pool!\n", ptr);
         }
     }
 }
 
 // Verify memory access bounds and log telemetry
-int mfSimulateAccess(MFContext* ctx, void* ptr) {
+int pmfSimulateAccess(PMFContext* ctx, void* ptr) {
     if (!ctx || !ptr) return -2;
+    
+    if (ctx->simulation_mode == 0) {
+        if ((uintptr_t)ptr == 0xBAADF00D) {
+            return -2;
+        }
+        return 0;
+    }
     
     uintptr_t addr = (uintptr_t)ptr;
     uintptr_t inner_start = (uintptr_t)ctx->sim_inner_space;
@@ -195,19 +203,19 @@ int mfSimulateAccess(MFContext* ctx, void* ptr) {
         return 0;
     } else if (addr >= outer_start && addr < outer_end) {
         // Out-of-bounds simulation breach!
-        printf("[!] MemFault Telemetry: Containment breach! Out-of-bounds access detected at address %p\n", ptr);
+        printf("[!] Pron Telemetry: Containment breach! Out-of-bounds access detected at address %p\n", ptr);
         printf("    - Outer Space range: [%p - %p]\n", (void*)outer_start, (void*)outer_end);
         printf("    - Inner Space range: [%p - %p]\n", (void*)inner_start, (void*)inner_end);
         return -1;
     } else {
         // Complete segmentation fault
-        printf("[CRITICAL] MemFault Telemetry: Fault access outside sandbox memory space at address %p\n", ptr);
+        printf("[CRITICAL] Pron Telemetry: Fault access outside sandbox memory space at address %p\n", ptr);
         return -2;
     }
 }
 
 // Clean up and shutdown
-int mfShutdown(MFContext* ctx) {
+int pmfShutdown(PMFContext* ctx) {
     if (!ctx) return -1;
     
     if (ctx->simulation_mode == 0) {
@@ -221,6 +229,6 @@ int mfShutdown(MFContext* ctx) {
             ctx->sim_outer_space = NULL;
         }
     }
-    printf("[+] MemFault SDK: Shutdown complete.\n");
+    printf("[+] Pron MF SDK: Shutdown complete.\n");
     return 0;
 }

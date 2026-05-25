@@ -6,8 +6,8 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
-const SOCKET_PATH: &str = "/tmp/memfaultd.sock";
-const DEFAULT_PROFILE_PATH: &str = "profiles/default.mfs";
+const SOCKET_PATH: &str = "/tmp/pronmftd.sock";
+const DEFAULT_PROFILE_PATH: &str = "/runtime/profiles/default.mfs";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct FaultProfile {
@@ -27,7 +27,7 @@ struct DaemonState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[+] Starting memfaultd (PronKern Runtime Daemon)...");
+    println!("[+] Starting pronmftd (Pron OS Runtime Daemon)...");
     
     // Load default profile
     let default_profile = load_profile(DEFAULT_PROFILE_PATH).unwrap_or(FaultProfile {
@@ -41,10 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("[+] Loaded active fault profile: {:?}", default_profile);
     
     // Check if kernel driver is present
-    let driver_present = Path::new("/dev/memfault").exists();
+    let driver_present = Path::new("/dev/pron_mf").exists();
     println!(
-        "[+] Checking for MemFault Kernel Module: {}", 
-        if driver_present { "Detected (/dev/memfault)" } else { "Not Detected (Running in User-Space Simulator Mode)" }
+        "[+] Checking for Pron Kernel Module: {}", 
+        if driver_present { "Detected (/dev/pron_mf)" } else { "Not Detected (Running in User-Space Simulator Mode)" }
     );
     
     let state = Arc::new(Mutex::new(DaemonState {
@@ -67,13 +67,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
             let s = telemetry_state.lock().await;
-            println!("[Telemetry] --- PronKern Status ---");
+            println!("[Telemetry] --- Pron OS Status ---");
             println!("  - Active Partition: {}", s.active_partition);
             println!("  - Kernel Mode: {}", if s.kernel_driver_active { "Active" } else { "Simulated (User-space)" });
             println!("  - Allocation Failure Rate: {}%", s.current_profile.allocation_failure_rate);
             println!("  - Guard Pages Enabled: {}", s.current_profile.guard_pages);
             println!("  - Simulation Latency: {} ms", s.current_profile.latency_ms);
-            println!("-------------------------------------");
+            println!("----------------------------------_");
         }
     });
     
@@ -135,7 +135,7 @@ async fn handle_connection(mut stream: UnixStream, state: Arc<Mutex<DaemonState>
                 
                 // If kernel driver is active, notify it of profile change
                 if s.kernel_driver_active {
-                    // In real driver, daemon writes profile configuration to /dev/memfault
+                    // In real driver, daemon writes profile configuration to /dev/pron_mf
                 }
                 
                 format!("SUCCESS profile_loaded={:?}", s.current_profile)

@@ -3,7 +3,7 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE_PATH="$BASE_DIR/output/memfaultos.img"
+IMAGE_PATH="$BASE_DIR/output/pron.img"
 
 if [ ! -f "$IMAGE_PATH" ]; then
     echo "[-] Error: Disk image not found at $IMAGE_PATH"
@@ -79,7 +79,7 @@ for arg in "$@"; do
 done
 
 echo "=========================================================="
-echo "          Launching MemFaultOS inside QEMU (UEFI)         "
+echo "          Launching Pron inside QEMU (UEFI)               "
 echo "=========================================================="
 echo "[+] Image:       $IMAGE_PATH"
 echo "[+] Memory:      1024 MB"
