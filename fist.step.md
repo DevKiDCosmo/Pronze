@@ -8,4 +8,8 @@
 8. SDK, Fraemwork and UT Testing
 9. Windows, Mac etc. support but ...
 
-Develop an GUI. (Later on)
+Develop an GUI. (Later on) Tauri and not electron.
+
+Features
+
+Later capturing also all inputs inside application and for reproductibility add something like Framework::WaitForNextInput. Framework::ContinueWithNextClick. This let's input be indepently execute from loading. So no time constraint. Those also say when capturing is possible. It needs to be init with Framework::InitDriverInput(&registrar, &uid, &pid);

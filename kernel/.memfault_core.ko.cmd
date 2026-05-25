@@ -1,0 +1,1 @@
+savedcmd_/workspace/kernel/memfault_core.ko := ld -r -m elf_x86_64 -z noexecstack --no-warn-rwx-segments --build-id=sha1  -T scripts/module.lds -o /workspace/kernel/memfault_core.ko /workspace/kernel/memfault_core.o /workspace/kernel/memfault_core.mod.o;  make -f ./arch/x86/Makefile.postlink /workspace/kernel/memfault_core.ko

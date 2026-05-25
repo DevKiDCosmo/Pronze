@@ -17,7 +17,7 @@ log_step "PronKern Setup: Initializing development environment"
 
 # Install development packages if run as root on Debian/Ubuntu
 if [ -f /etc/debian_version ] && [ "$(id -u)" -eq 0 ]; then
-    log_step "Updating apt-get and installing build dependencies"
+    log_step "Updating package manager and installing build dependencies"
     apt-get update && apt-get install -y \
         build-essential \
         clang \
@@ -41,7 +41,7 @@ fi
 # Create target directories
 log_step "Creating system directories in $OPT_DIR"
 mkdir -p "$OPT_DIR" "$PROFILES_DIR" "$SDK_DIR" "$RUNTIME_DIR" "$SNAPSHOTS_DIR" 2>/dev/null || {
-    log_info "/opt permission denied. Attempting with sudo..."
+    log_info "/opt permission denied. Attempting to elevate with sudo..."
     sudo mkdir -p "$OPT_DIR" "$PROFILES_DIR" "$SDK_DIR" "$RUNTIME_DIR" "$SNAPSHOTS_DIR"
     sudo chown -R "$(id -u):$(id -g)" "$OPT_DIR"
 }

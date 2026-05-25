@@ -15,10 +15,10 @@ fi
 
 cd "$KERNEL_DIR"
 
-log_step "Generiere Standardkonfiguration"
+log_step "Generating default configuration"
 make defconfig
 
-log_step "Aktiviere PronKern Instrumentation-Funktionen"
+log_step "Enabling PronKern Instrumentation features"
 scripts/config --enable CONFIG_BPF
 scripts/config --enable CONFIG_KPROBES
 scripts/config --enable CONFIG_FTRACE
@@ -28,21 +28,21 @@ scripts/config --enable CONFIG_KALLSYMS
 scripts/config --enable CONFIG_KASAN
 scripts/config --enable CONFIG_DEBUG_FS
 
-log_step "Aktiviere Kernel Safety & Prevention-Konfigurationen"
+log_step "Enabling Kernel Safety & Prevention configurations"
 scripts/config --disable CONFIG_PANIC_ON_OOPS
 scripts/config --disable CONFIG_BUG
 scripts/config --enable CONFIG_DEBUG_KERNEL
 
-log_step "Kompiliere den angepassten Kernel"
+log_step "Compiling custom kernel"
 make -j"$(nproc)"
 
-log_step "Installiere Kernel-Module und Artefakte"
+log_step "Installing kernel modules and artifacts"
 # Run modules_install if permissions allow
 if [ "$(id -u)" -eq 0 ]; then
     make modules_install
     make install
 else
-    log_info "Non-root user: modules_install/install wird übersprungen. Binärdatei liegt in arch/x86/boot/bzImage"
+    log_info "Non-root user: skipping modules_install/install. Binaries built in arch/x86/boot/bzImage"
 fi
 
 log_success "PronKern Kernel Build Complete!"

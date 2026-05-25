@@ -2,31 +2,40 @@ FROM --platform=linux/amd64 ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install core system dependencies
+# Install compilation toolchains, packaging utilities, and target distro dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     bc \
     bison \
     build-essential \
+    btrfs-progs \
     ca-certificates \
     cpio \
     curl \
+    dosfstools \
     dwarves \
+    fdisk \
     flex \
     git \
     libelf-dev \
     libncurses-dev \
     libssl-dev \
+    mtools \
+    musl-tools \
     perl \
     python3 \
     rsync \
+    syslinux \
+    syslinux-common \
+    systemd-boot \
     wget \
     xz-utils \
   && rm -rf /var/lib/apt/lists/*
 
-# Install Rust toolchain (stable)
+# Install Rust toolchain (stable) and add musl target
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+RUN rustup target add x86_64-unknown-linux-musl
 
 # Install Zig toolchain (0.13.0)
 RUN ARCH=$(uname -m) && \
@@ -45,5 +54,5 @@ COPY . /workspace
 # Ensure scripts are executable
 RUN chmod +x /workspace/scripts/*.sh
 
-# Run compilation and test orchestration by default
-ENTRYPOINT ["/bin/bash", "/workspace/scripts/run-all.sh"]
+# Run the distro build and packaging script by default
+ENTRYPOINT ["/bin/bash", "/workspace/scripts/build-distro.sh"]
