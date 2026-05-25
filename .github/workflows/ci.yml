@@ -1,0 +1,26 @@
+name: PronKern CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and Run Verification Suite inside Docker
+        run: |
+          echo "[+] Building PronKern Development Docker Image..."
+          docker build -t PronKern:latest .
+
+          echo "[+] Running verification suite..."
+          docker run --rm PronKern:latest

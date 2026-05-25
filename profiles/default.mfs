@@ -1,0 +1,7 @@
+{
+  "allocation_failure_rate": 2,
+  "fragmentation": true,
+  "latency_ms": 5,
+  "guard_pages": true,
+  "corruption_rate": 0.01
+}
