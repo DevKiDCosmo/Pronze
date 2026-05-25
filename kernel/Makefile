@@ -1,4 +1,4 @@
-obj-m += memfault_core.o
+obj-m += pron_mf_core.o
 
 KDIR ?= /lib/modules/$(shell uname -r)/build
 PWD := $(shell pwd)
