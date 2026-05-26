@@ -1,3 +1,0 @@
-#!/bin/sh
-# Exec replacement runs daemon in foreground to allow s6 supervision
-exec /usr/bin/pronmftd

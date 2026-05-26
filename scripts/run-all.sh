@@ -18,7 +18,7 @@ mkdir -p logs
 
 # 1. Build C SDK (Shared Library)
 log_step "1/6 Compiling C SDK Shared Library (libmemfault.so)"
-gcc -O2 -fPIC -shared -I"$BASE_DIR/sdk/c/include" "$BASE_DIR/sdk/c/src/memfault.c" -o "$BASE_DIR/sdk/c/src/libmemfault.so"
+gcc -O2 -fPIC -shared -I"$BASE_DIR/sdk/c/include" "$BASE_DIR/sdk/c/src/pmf.c" -o "$BASE_DIR/sdk/c/src/libmemfault.so"
 log_success "Done: sdk/c/src/libmemfault.so"
 
 # 2. Build Rust Runtime Daemon (memfaultd)
@@ -59,7 +59,7 @@ fi
 if command -v zig &> /dev/null; then
     log_step "6/6 Compiling Zig SDK Binding Test"
     # Compile Zig test, incorporating C sources directly to skip linker hassles
-    zig build-exe "$BASE_DIR/test/test_zig.zig" "$BASE_DIR/sdk/c/src/memfault.c" -I "$BASE_DIR/sdk/c/include" --library c --name "$BASE_DIR/test/test_zig"
+    zig build-exe "$BASE_DIR/test/test_zig.zig" "$BASE_DIR/sdk/c/src/pmf.c" -I "$BASE_DIR/sdk/c/include" --library c --name "$BASE_DIR/test/test_zig"
     log_success "Done: test/test_zig"
 else
     log_info "zig not found. Skipping Zig SDK test."

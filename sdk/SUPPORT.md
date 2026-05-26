@@ -1,18 +1,10 @@
 # Language Support
 
-C++/C y SDK(kernel inj + sim)
+See the root [SUPPORT.md](file:///workspace/SUPPORT.md) for full documentation on SDK distribution guidelines, FFI integration, and universal `.so` linking.
 
-Rust y SDK(kernel inj + sim)
+## Current Support Matrix
 
-Zig n SDK(kernel inj + sim)
-
-Py y (sim)
-
-C — native ABI, direct .so support
-C++ — compatible with C libraries using extern "C"
-Rust — excellent FFI support with C
-Go — possible via cgo, but less ergonomic
-Python — easy to call .so using ctypes or bindings
-Zig — very good C interoperability
-
-Also JS can later be through injected Library into Runtime to run ASM/WASM.
+- **C / C++**: Fully supported in Kernel and User Simulation mode.
+- **Rust**: Simplified to "Not Implemented" FFI placeholder.
+- **Zig**: Simplified to "Not Implemented" FFI placeholder.
+- **Python**: Planned simulation mode via dynamic loading.

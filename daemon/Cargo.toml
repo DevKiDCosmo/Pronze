@@ -1,9 +1,9 @@
 [package]
-name = "pronmftd"
+name = "prond"
 version = "0.1.0"
 edition = "2021"
 authors = ["PronKern Team"]
-description = "Pron OS Runtime Daemon (pronmftd)"
+description = "Pron OS Runtime Daemon (prond)"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

@@ -1,11 +1,47 @@
+# System & IDE files
+.DS_Store
 *.log
-*.DS_Store
-*.so
-target/
-bzImage
+out.log
 
-*.o
-*.bzImage
-*.gz
+# Build Outputs & Disk Images
+output/
 *.img
+esp.img
+rootfs.img
+bzImage
+vmlinuz
+
+# Compiled Shared Libraries and Object Files
+*.so
+*.o
 *.ko
+
+# Rust build target directories
+target/
+**/target/
+Cargo.lock
+
+# Zig test binary outputs
+/test_zig
+/test_zig.o
+/test/test_zig
+/test/test_zig.o
+/test/pronmf.zig
+
+# C/C++ Test Binaries
+/test/test_alloc
+/test/test_bounds
+
+# Kernel Module Build Artifacts
+*.mod
+*.mod.c
+*.cmd
+.tmp_versions/
+modules.order
+Module.symvers
+kernel/.*.cmd
+kernel/*.mod
+kernel/*.mod.c
+kernel/modules.order
+kernel/Module.symvers
+kernel/.tmp_versions/

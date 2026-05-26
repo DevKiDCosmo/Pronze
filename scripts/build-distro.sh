@@ -137,6 +137,7 @@ scripts/config --enable CONFIG_DEBUG_KERNEL
 # Enable Btrfs filesystem support
 scripts/config --enable CONFIG_BTRFS_FS
 
+make olddefconfig
 make -j"$(nproc)"
 echo "[✔] Done: kernel bzImage compiled"
 
@@ -149,14 +150,13 @@ echo "[✔] Done: kernel/pron_mf_core.ko built successfully"
 # 7. Build C/C++ SDK (Shared Library) & tests against musl
 echo -e "\n[+] 7/11 Compiling SDK and verification tests against musl..."
 # Compile dynamic C SDK shared library
-musl-gcc -O2 -fPIC -shared -Wl,-soname,libpronmemf.so -I/workspace/sdk/c/include /workspace/sdk/c/src/pmf.c -o /workspace/sdk/c/src/libpronmemf.so
+musl-gcc -O2 -fPIC -shared -Wl,-soname,libpronmft.so -I/workspace/sdk/c/include /workspace/sdk/c/src/pmf.c -o /workspace/sdk/c/src/libpronmft.so
 # Compile C verification tests
-musl-gcc -O2 -I/workspace/sdk/c/include /workspace/test/test_alloc.c -L/workspace/sdk/c/src -lpronmemf -Wl,-rpath,/usr/lib -o /workspace/test/test_alloc
+musl-gcc -O2 -I/workspace/sdk/c/include /workspace/test/test_alloc.c -L/workspace/sdk/c/src -lpronmft -Wl,-rpath,/usr/lib -o /workspace/test/test_alloc
 # Compile C++ bounds test
-zig c++ -target x86_64-linux-musl -O2 -I/workspace/sdk/c/include -I/workspace/sdk/cpp/include /workspace/test/test_bounds.cpp -L/workspace/sdk/c/src -lpronmemf -Wl,-rpath,/usr/lib -o /workspace/test/test_bounds
+zig c++ -target x86_64-linux-musl -O2 -I/workspace/sdk/c/include -I/workspace/sdk/cpp/include /workspace/test/test_bounds.cpp -L/workspace/sdk/c/src -lpronmft -Wl,-rpath,/usr/lib -o /workspace/test/test_bounds
 # Compile Zig verification test
-cp /workspace/sdk/zig/pronmf.zig /workspace/test/pronmf.zig
-cd /workspace/test && zig build-exe -target x86_64-linux-musl -O ReleaseSafe /workspace/test/test_zig.zig -lc -L/workspace/sdk/c/src -lpronmemf -I/workspace/sdk/c/include
+cd /workspace/test && zig build-exe -target x86_64-linux-musl -O ReleaseSafe /workspace/test/test_zig.zig
 # Compile Rust verification test
 cd /workspace/test/test_rust && cargo build --target x86_64-unknown-linux-musl --release
 echo "[✔] Done: SDK & tests compiled"
@@ -170,7 +170,7 @@ echo "[✔] Done: daemon built statically targeting x86_64-unknown-linux-musl"
 # 9. Assemble Root Filesystem layout (Btrfs rootfs)
 echo -e "\n[+] 9/11 Assembling rootfs tree structure..."
 rm -rf "$ROOTFS_DIR"/*
-mkdir -p "$ROOTFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,tmp,etc/s6-services/pronmfd,kernel,runtime/profiles,usr/lib}
+mkdir -p "$ROOTFS_DIR"/{bin,sbin,usr/bin,usr/sbin,lib,lib64,proc,sys,dev,tmp,etc/s6-services/prond,kernel,runtime/profiles,usr/lib}
 
 # Copy BusyBox files
 cp -av "$SRC_DIR/busybox-$BUSYBOX_VERSION/_install"/* "$ROOTFS_DIR"/
@@ -181,12 +181,12 @@ cp -av /tmp/s6_install/usr/sbin/* "$ROOTFS_DIR/usr/sbin/" 2>/dev/null || true
 
 
 # Copy s6 service run script
-cp -av /workspace/s6/pronmfd/run "$ROOTFS_DIR/etc/s6-services/pronmfd/run"
-chmod +x "$ROOTFS_DIR/etc/s6-services/pronmfd/run"
+cp -av /workspace/s6/prond/run "$ROOTFS_DIR/etc/s6-services/prond/run"
+chmod +x "$ROOTFS_DIR/etc/s6-services/prond/run"
 
 # Copy daemon, SDK, tests, and default profiles
-cp -av /workspace/daemon/target/x86_64-unknown-linux-musl/release/pronmftd "$ROOTFS_DIR/usr/bin/"
-cp -av /workspace/sdk/c/src/libpronmemf.so "$ROOTFS_DIR/usr/lib/"
+cp -av /workspace/daemon/target/x86_64-unknown-linux-musl/release/prond "$ROOTFS_DIR/usr/bin/"
+cp -av /workspace/sdk/c/src/libpronmft.so "$ROOTFS_DIR/usr/lib/"
 cp -av /workspace/test/test_alloc "$ROOTFS_DIR/usr/bin/"
 cp -av /workspace/test/test_bounds "$ROOTFS_DIR/usr/bin/"
 cp -av /workspace/test/test_zig "$ROOTFS_DIR/usr/bin/"
@@ -238,6 +238,9 @@ if [ -f /kernel/pron_mf_core.ko ]; then
     mknod /dev/pron_mf c 240 0
     chmod 666 /dev/pron_mf
     echo "[✔] Registered device node /dev/pron_mf (major: 240)"
+    mknod /dev/pron_telemetrics c 241 0
+    chmod 666 /dev/pron_telemetrics
+    echo "[✔] Registered device node /dev/pron_telemetrics (major: 241)"
 fi
 
 # Launch s6 supervisor scans to monitor daemon
@@ -260,9 +263,13 @@ LD_LIBRARY_PATH=/usr/lib /usr/bin/test_zig
 echo -e "\n[+] Running verification test (Rust SDK FFI)..."
 LD_LIBRARY_PATH=/usr/lib /usr/bin/test_rust
 
-# Spawn shell
-echo -e "\nSpawning system terminal shell..."
-exec /bin/sh
+# Spawn shell in a loop to prevent kernel panic on exit
+while true; do
+    echo -e "\nSpawning system terminal shell..."
+    /bin/sh
+    echo "Shell exited. Restarting shell..."
+    sleep 1
+done
 EOF
 
 chmod +x "$ROOTFS_DIR/init"
@@ -331,6 +338,16 @@ dd if="$WORK_DIR/rootfs.img" of="$WORK_DIR/pron.img" bs=1M seek=65 conv=notrunc
 
 # Export Image
 cp "$WORK_DIR/pron.img" "$OUTPUT_DIR/pron.img"
+
+# Copy useful binaries to the output folder
+echo "[+] Copying useful binaries to output folder..."
+cp -av /workspace/sdk/c/src/libpronmft.so "$OUTPUT_DIR/"
+cp -av /workspace/daemon/target/x86_64-unknown-linux-musl/release/prond "$OUTPUT_DIR/"
+cp -av /workspace/test/test_alloc "$OUTPUT_DIR/"
+cp -av /workspace/test/test_bounds "$OUTPUT_DIR/"
+cp -av /workspace/test/test_zig "$OUTPUT_DIR/"
+cp -av /workspace/test/test_rust/target/x86_64-unknown-linux-musl/release/test_rust "$OUTPUT_DIR/"
+cp -av /workspace/kernel/pron_mf_core.ko "$OUTPUT_DIR/"
 
 echo "=========================================================="
 echo "     Pron UEFI Btrfs Image Generated Successfully!        "

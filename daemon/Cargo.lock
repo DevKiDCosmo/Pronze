@@ -107,7 +107,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pronmftd"
+name = "prond"
 version = "0.1.0"
 dependencies = [
  "serde",

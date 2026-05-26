@@ -3,10 +3,6 @@ name = "pronmf"
 version = "0.1.0"
 edition = "2021"
 authors = ["PronKern Team"]
-description = "Rust FFI bindings for PronKern SDK"
+description = "Rust SDK bindings for PronKern (Not Implemented)"
 
 [dependencies]
-libc = "0.2"
-
-[build-dependencies]
-cc = "1.0"

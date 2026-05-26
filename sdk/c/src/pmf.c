@@ -132,32 +132,43 @@ int pmfEnableAllocationFailure(PMFContext* ctx, int failure_rate) {
 void* pmf_malloc(PMFContext* ctx, size_t size) {
     if (!ctx) return NULL;
     
+    void* ptr = NULL;
+    int triggered_failure = 0;
+    
     // Inject deterministic allocation failure based on rate config
     if (ctx->failure_rate > 0) {
         int r = rand() % 100;
         if (r < ctx->failure_rate) {
-            // Failure triggered
-            return NULL;
+            triggered_failure = 1;
         }
     }
     
-    if (ctx->simulation_mode == 0) {
-        // In kernel mode, standard system malloc is used, driver tracks allocations via kprobes/ftrace
-        return malloc(size);
+    if (triggered_failure) {
+        ptr = NULL;
     } else {
-        // Bump allocation within simulation inner space (Application Pool)
-        // Align block to 8 bytes
-        size_t aligned_size = (size + 7) & ~7;
-        
-        if (ctx->sim_offset + aligned_size > ctx->sim_inner_size) {
-            printf("[-] Pron MF SDK Simulation: Out of memory in Application Pool!\n");
-            return NULL;
+        if (ctx->simulation_mode == 0) {
+            ptr = malloc(size);
+        } else {
+            // Bump allocation within simulation inner space (Application Pool)
+            // Align block to 8 bytes
+            size_t aligned_size = (size + 7) & ~7;
+            
+            if (ctx->sim_offset + aligned_size > ctx->sim_inner_size) {
+                printf("[-] Pron MF SDK Simulation: Out of memory in Application Pool!\n");
+                ptr = NULL;
+            } else {
+                ptr = (void*)((uintptr_t)ctx->sim_inner_space + ctx->sim_offset);
+                ctx->sim_offset += aligned_size;
+            }
         }
-        
-        void* ptr = (void*)((uintptr_t)ctx->sim_inner_space + ctx->sim_offset);
-        ctx->sim_offset += aligned_size;
-        return ptr;
     }
+    
+    // In kernel mode, notify the driver of success/failure
+    if (ctx->simulation_mode == 0 && ctx->fd >= 0) {
+        ioctl(ctx->fd, PMF_IOCTL_RECORD_MALLOC, ptr == NULL ? 1 : 0);
+    }
+    
+    return ptr;
 }
 
 // Free memory

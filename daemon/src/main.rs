@@ -6,7 +6,7 @@ use tokio::net::{UnixListener, UnixStream};
 use tokio::sync::Mutex;
 use serde::{Deserialize, Serialize};
 
-const SOCKET_PATH: &str = "/tmp/pronmftd.sock";
+const SOCKET_PATH: &str = "/tmp/prond.sock";
 const DEFAULT_PROFILE_PATH: &str = "/runtime/profiles/default.mfs";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,7 +27,7 @@ struct DaemonState {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    println!("[+] Starting pronmftd (Pron OS Runtime Daemon)...");
+    println!("[+] Starting prond (Pron OS Runtime Daemon)...");
     
     // Load default profile
     let default_profile = load_profile(DEFAULT_PROFILE_PATH).unwrap_or(FaultProfile {
