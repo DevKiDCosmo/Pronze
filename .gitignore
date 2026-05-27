@@ -45,3 +45,7 @@ kernel/*.mod.c
 kernel/modules.order
 kernel/Module.symvers
 kernel/.tmp_versions/
+
+
+.idea/
+.clangd
