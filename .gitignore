@@ -50,3 +50,6 @@ kernel/.tmp_versions/
 
 .idea/
 .clangd
+
+.output-nochanges/
+.builthash/
