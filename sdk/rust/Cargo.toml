@@ -1,8 +1,8 @@
 [package]
-name = "pronmf"
+name = "pronze"
 version = "0.1.0"
 edition = "2021"
-authors = ["PronKern Team"]
-description = "Rust SDK bindings for PronKern (Not Implemented)"
+authors = ["PronzeOS Team"]
+description = "Rust SDK bindings for PronzeOS (Not Implemented)"
 
 [dependencies]

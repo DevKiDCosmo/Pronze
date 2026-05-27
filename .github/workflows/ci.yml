@@ -1,4 +1,4 @@
-name: PronKern CI/CD Pipeline
+name: PronzeOS CI/CD Pipeline
 
 on:
   push:
@@ -19,8 +19,8 @@ jobs:
 
       - name: Build and Run Verification Suite inside Docker
         run: |
-          echo "[+] Building PronKern Development Docker Image..."
-          docker build -t PronKern:latest .
+          echo "[+] Building pronzeos Development Docker Image..."
+          docker build -t pronzeos:latest .
 
           echo "[+] Running verification suite..."
-          docker run --rm PronKern:latest
+          docker run --rm pronzeos:latest

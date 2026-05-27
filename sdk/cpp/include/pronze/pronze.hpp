@@ -1,66 +1,66 @@
-#ifndef PRONMF_HPP
-#define PRONMF_HPP
+#ifndef PRONZE_HPP
+#define PRONZE_HPP
 
-#include <pmf/pmf.h>
+#include <pronze/pronze.h>
 #include <stdexcept>
 #include <string>
 
-namespace pronmf {
+namespace pronze {
 
-class PronMFContext {
+class PronzeContext {
 private:
-    PMFContext ctx;
+    ::PronzeContext ctx;
     bool initialized;
 
 public:
-    PronMFContext() : initialized(false) {
-        if (pmfInit(&ctx) != 0) {
-            throw std::runtime_error("Failed to initialize Pron MF Context");
+    PronzeContext() : initialized(false) {
+        if (pronzeInit(&ctx) != 0) {
+            throw std::runtime_error("Failed to initialize Pronze Context");
         }
         initialized = true;
     }
 
-    ~PronMFContext() {
+    ~PronzeContext() {
         if (initialized) {
-            pmfShutdown(&ctx);
+            pronzeShutdown(&ctx);
         }
     }
 
     void loadProfile(const std::string& profile_path) {
-        if (pmfLoadProfile(&ctx, profile_path.c_str()) != 0) {
+        if (pronzeLoadProfile(&ctx, profile_path.c_str()) != 0) {
             throw std::runtime_error("Failed to load fault profile: " + profile_path);
         }
     }
 
     void startProfiling() {
-        if (pmfStartProfiling(&ctx) != 0) {
+        if (pronzeStartProfiling(&ctx) != 0) {
             throw std::runtime_error("Failed to start profiling");
         }
     }
 
     void enableAllocationFailure(int failure_rate) {
-        if (pmfEnableAllocationFailure(&ctx, failure_rate) != 0) {
+        if (pronzeEnableAllocationFailure(&ctx, failure_rate) != 0) {
             throw std::runtime_error("Failed to enable allocation failure");
         }
     }
 
     void* allocate(size_t size) {
-        return pmf_malloc(&ctx, size);
+        return pronze_malloc(&ctx, size);
     }
 
     void deallocate(void* ptr) {
-        pmf_free(&ctx, ptr);
+        pronze_free(&ctx, ptr);
     }
 
     int simulateAccess(void* ptr) {
-        return pmfSimulateAccess(&ctx, ptr);
+        return pronzeSimulateAccess(&ctx, ptr);
     }
 
-    PMFContext* getRawContext() {
+    ::PronzeContext* getRawContext() {
         return &ctx;
     }
 };
 
-} // namespace pronmf
+} // namespace pronze
 
-#endif // PRONMF_HPP
+#endif // PRONZE_HPP

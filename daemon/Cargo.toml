@@ -1,9 +1,9 @@
 [package]
-name = "prond"
+name = "pronzed"
 version = "0.1.0"
 edition = "2021"
-authors = ["PronKern Team"]
-description = "Pron OS Runtime Daemon (prond)"
+authors = ["PronzeOS Team"]
+description = "PronzeOS Runtime Daemon (pronzed)"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

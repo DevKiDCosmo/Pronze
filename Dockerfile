@@ -54,5 +54,5 @@ COPY . /workspace
 # Ensure scripts are executable
 RUN chmod +x /workspace/scripts/*.sh
 
-# Run the distro build and packaging script by default
-ENTRYPOINT ["/bin/bash", "/workspace/scripts/build-distro.sh"]
+# Run the entrypoint routing script by default
+ENTRYPOINT ["/bin/bash", "/workspace/scripts/entrypoint.sh"]

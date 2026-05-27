@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 
-# Pron OS USB Flashing Assistant Script
+# PronzeOS USB Flashing Assistant Script
 # Safe wrapper around dd for macOS and Linux.
 
 set -e
 
-IMAGE_PATH="/workspace/output/pron.img"
+IMAGE_PATH="/workspace/output/pronzeos.img"
 if [ ! -f "$IMAGE_PATH" ]; then
-    IMAGE_PATH="./output/pron.img"
+    IMAGE_PATH="./output/pronzeos.img"
 fi
 
 echo "=========================================================="
-echo "          Pron OS USB Flashing Assistant                  "
+echo "          PronzeOS USB Flashing Assistant                  "
 echo "=========================================================="
 
 if [ ! -f "$IMAGE_PATH" ]; then

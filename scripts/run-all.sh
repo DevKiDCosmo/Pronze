@@ -11,34 +11,34 @@ source "$SCRIPT_DIR/utils/log_lib.sh"
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BASE_DIR"
 
-log_section "          PronKern Framework Build & Test Suite         " 58
+log_section "          PronzeOS Framework Build & Test Suite         " 58
 
 # Create log directories
 mkdir -p logs
 
 # 1. Build C SDK (Shared Library)
-log_step "1/6 Compiling C SDK Shared Library (libmemfault.so)"
-gcc -O2 -fPIC -shared -I"$BASE_DIR/sdk/c/include" "$BASE_DIR/sdk/c/src/pmf.c" -o "$BASE_DIR/sdk/c/src/libmemfault.so"
-log_success "Done: sdk/c/src/libmemfault.so"
+log_step "1/6 Compiling C SDK Shared Library (libpronze.so)"
+gcc -O2 -fPIC -shared -I"$BASE_DIR/sdk/c/include" "$BASE_DIR/sdk/c/src/pronze.c" -o "$BASE_DIR/sdk/c/src/libpronze.so"
+log_success "Done: sdk/c/src/libpronze.so"
 
-# 2. Build Rust Runtime Daemon (memfaultd)
+# 2. Build Rust Runtime Daemon (pronzed)
 if command -v cargo &> /dev/null; then
-    log_step "2/6 Building Rust Runtime Daemon (memfaultd)"
+    log_step "2/6 Building Rust Runtime Daemon (pronzed)"
     cargo build --manifest-path "$BASE_DIR/daemon/Cargo.toml"
-    log_success "Done: daemon/target/debug/memfaultd"
+    log_success "Done: daemon/target/debug/pronzed"
 else
     log_info "cargo not found. Skipping daemon compilation."
 fi
 
 # 3. Build C test (Allocation failure)
 log_step "3/6 Compiling C Allocation Failure Test"
-gcc -O2 -I"$BASE_DIR/sdk/c/include" "$BASE_DIR/test/test_alloc.c" -L"$BASE_DIR/sdk/c/src" -lmemfault -Wl,-rpath,"$BASE_DIR/sdk/c/src" -o "$BASE_DIR/test/test_alloc"
+gcc -O2 -I"$BASE_DIR/sdk/c/include" "$BASE_DIR/test/test_alloc.c" -L"$BASE_DIR/sdk/c/src" -lpronze -Wl,-rpath,"$BASE_DIR/sdk/c/src" -o "$BASE_DIR/test/test_alloc"
 log_success "Done: test/test_alloc"
 
 # 4. Build C++ test (Container bounds checking)
 if command -v g++ &> /dev/null; then
     log_step "4/6 Compiling C++ Container Bounds checking Test"
-    g++ -O2 -I"$BASE_DIR/sdk/c/include" -I"$BASE_DIR/sdk/cpp/include" "$BASE_DIR/test/test_bounds.cpp" -L"$BASE_DIR/sdk/c/src" -lmemfault -Wl,-rpath,"$BASE_DIR/sdk/c/src" -o "$BASE_DIR/test/test_bounds"
+    g++ -O2 -I"$BASE_DIR/sdk/c/include" -I"$BASE_DIR/sdk/cpp/include" "$BASE_DIR/test/test_bounds.cpp" -L"$BASE_DIR/sdk/c/src" -lpronze -Wl,-rpath,"$BASE_DIR/sdk/c/src" -o "$BASE_DIR/test/test_bounds"
     log_success "Done: test/test_bounds"
 else
     log_info "g++ not found. Skipping C++ test compilation."
@@ -59,7 +59,7 @@ fi
 if command -v zig &> /dev/null; then
     log_step "6/6 Compiling Zig SDK Binding Test"
     # Compile Zig test, incorporating C sources directly to skip linker hassles
-    zig build-exe "$BASE_DIR/test/test_zig.zig" "$BASE_DIR/sdk/c/src/pmf.c" -I "$BASE_DIR/sdk/c/include" --library c --name "$BASE_DIR/test/test_zig"
+    zig build-exe "$BASE_DIR/test/test_zig.zig" "$BASE_DIR/sdk/c/src/pronze.c" -I "$BASE_DIR/sdk/c/include" --library c --name "$BASE_DIR/test/test_zig"
     log_success "Done: test/test_zig"
 else
     log_info "zig not found. Skipping Zig SDK test."
@@ -81,14 +81,14 @@ fi
 
 # Run daemon in the background (simulation)
 if command -v cargo &> /dev/null; then
-    log_step "Starting memfaultd daemon in simulation mode"
+    log_step "Starting pronzed daemon in simulation mode"
     # Kill any existing daemon
-    pkill -f memfaultd || true
-    "$BASE_DIR/daemon/target/debug/memfaultd" &> logs/memfaultd.log &
+    pkill -f pronzed || true
+    "$BASE_DIR/daemon/target/debug/pronzed" &> logs/pronzed.log &
     DAEMON_PID=$!
     # Give it a second to bind
     sleep 1.5
-    log_success "Daemon started in background (PID: $DAEMON_PID, logs/memfaultd.log)"
+    log_success "Daemon started in background (PID: $DAEMON_PID, logs/pronzed.log)"
 fi
 
 # Executing Tests

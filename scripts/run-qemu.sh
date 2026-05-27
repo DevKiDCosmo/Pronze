@@ -3,7 +3,7 @@
 set -e
 
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-IMAGE_PATH="$BASE_DIR/output/pron.img"
+IMAGE_PATH="$BASE_DIR/output/pronzeos.img"
 
 if [ ! -f "$IMAGE_PATH" ]; then
     echo "[-] Error: Disk image not found at $IMAGE_PATH"
@@ -79,7 +79,7 @@ for arg in "$@"; do
 done
 
 echo "=========================================================="
-echo "          Launching Pron inside QEMU (UEFI)               "
+echo "          Launching Pronze inside QEMU (UEFI)               "
 echo "=========================================================="
 echo "[+] Image:       $IMAGE_PATH"
 echo "[+] Memory:      1024 MB"

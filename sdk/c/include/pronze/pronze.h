@@ -1,5 +1,5 @@
-#ifndef PMF_H
-#define PMF_H
+#ifndef PRONZE_H
+#define PRONZE_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -9,9 +9,9 @@ extern "C" {
 #endif
 
 // Poison pointer definition
-#define PMF_POISON_PTR ((void*)0xDEADBEEF)
+#define PRONZE_POISON_PTR ((void*)0xDEADBEEF)
 
-// Pron MF profiling and simulation context
+// Pronze profiling and simulation context
 typedef struct {
     int fd;                       // Device file descriptor (for kernel mode)
     int failure_rate;             // Failure rate percentage (0 to 100)
@@ -23,22 +23,22 @@ typedef struct {
     void* sim_inner_space;        // The "Inner Space" (Application Pool)
     size_t sim_inner_size;        // Size of Application Pool
     size_t sim_offset;            // Bump allocator offset in Inner Space
-} PMFContext;
+} PronzeContext;
 
 // Public SDK API Functions
-int pmfInit(PMFContext* ctx);
-int pmfLoadProfile(PMFContext* ctx, const char* profile_path);
-int pmfStartProfiling(PMFContext* ctx);
-void* pmf_malloc(PMFContext* ctx, size_t size);
-void pmf_free(PMFContext* ctx, void* ptr);
-int pmfShutdown(PMFContext* ctx);
-int pmfEnableAllocationFailure(PMFContext* ctx, int failure_rate);
+int pronzeInit(PronzeContext* ctx);
+int pronzeLoadProfile(PronzeContext* ctx, const char* profile_path);
+int pronzeStartProfiling(PronzeContext* ctx);
+void* pronze_malloc(PronzeContext* ctx, size_t size);
+void pronze_free(PronzeContext* ctx, void* ptr);
+int pronzeShutdown(PronzeContext* ctx);
+int pronzeEnableAllocationFailure(PronzeContext* ctx, int failure_rate);
 
 // Telemetry and simulation verification functions
-int pmfSimulateAccess(PMFContext* ctx, void* ptr);
+int pronzeSimulateAccess(PronzeContext* ctx, void* ptr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // PMF_H
+#endif // PRONZE_H

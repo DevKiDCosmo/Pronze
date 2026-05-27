@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# Pron OS Developer Workspace Cleanup Script
+# PronzeOS Developer Workspace Cleanup Script
 # Deletes all compiled binaries, intermediate objects, logs, and build artifacts.
 
 set -e
@@ -10,7 +10,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 echo "=========================================================="
-echo "          Pron OS Developer Workspace Cleanup            "
+echo "          PronzeOS Developer Workspace Cleanup            "
 echo "=========================================================="
 
 # 1. Clean output directory
@@ -43,7 +43,7 @@ rm -f "$WORKSPACE_DIR"/test/test_alloc
 rm -f "$WORKSPACE_DIR"/test/test_bounds
 rm -f "$WORKSPACE_DIR"/test/test_zig
 rm -f "$WORKSPACE_DIR"/test/test_zig.o
-rm -f "$WORKSPACE_DIR"/test/pronmf.zig
+rm -f "$WORKSPACE_DIR"/test/pronze.zig
 rm -f "$WORKSPACE_DIR"/test_zig
 rm -f "$WORKSPACE_DIR"/test_zig.o
 
@@ -66,9 +66,9 @@ echo "[+] Removing build logs..."
 rm -f "$WORKSPACE_DIR"/out.log
 
 # 7. Clean temporary build directory if it exists on host (if running in builder)
-if [ -d "/tmp/memfault_build" ]; then
-    echo "[+] Cleaning temporary build directory /tmp/memfault_build..."
-    rm -rf /tmp/memfault_build
+if [ -d "/tmp/pronze_build" ]; then
+    echo "[+] Cleaning temporary build directory /tmp/pronze_build..."
+    rm -rf /tmp/pronze_build
 fi
 if [ -d "/tmp/s6_install" ]; then
     echo "[+] Cleaning temporary s6 install directory /tmp/s6_install..."

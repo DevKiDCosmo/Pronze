@@ -6,18 +6,18 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <time.h>
-#include <pmf/pmf.h>
+#include <pronze/pronze.h>
 
 #define MAJOR_NUM 240
-#define DEVICE_PATH "/dev/pron_mf"
+#define DEVICE_PATH "/dev/pronze"
 
-#define PMF_IOCTL_ENABLE_FAULT  0x1001
-#define PMF_IOCTL_SET_PROFILE   0x1002
-#define PMF_IOCTL_START_TRACE   0x1003
-#define PMF_IOCTL_RECORD_MALLOC 0x1004
+#define PRONZE_IOCTL_ENABLE_FAULT  0x1001
+#define PRONZE_IOCTL_SET_PROFILE   0x1002
+#define PRONZE_IOCTL_START_TRACE   0x1003
+#define PRONZE_IOCTL_RECORD_MALLOC 0x1004
 
 // Initialize context
-int pmfInit(PMFContext* ctx) {
+int pronzeInit(PronzeContext* ctx) {
     if (!ctx) return -1;
     
     // Seed the randomizer for user-space simulation faults
@@ -35,7 +35,7 @@ int pmfInit(PMFContext* ctx) {
         ctx->sim_inner_space = NULL;
         ctx->sim_inner_size = 0;
         ctx->sim_offset = 0;
-        printf("[+] Pron MF SDK: Kernel Mode Enabled. Connected to %s\n", DEVICE_PATH);
+        printf("[+] Pronze SDK: Kernel Mode Enabled. Connected to %s\n", DEVICE_PATH);
     } else {
         // Fallback to User-Space Simulation Container Mode
         ctx->fd = -1;
@@ -48,7 +48,7 @@ int pmfInit(PMFContext* ctx) {
         // Map Outer Space
         ctx->sim_outer_space = mmap(NULL, ctx->sim_outer_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (ctx->sim_outer_space == MAP_FAILED) {
-            perror("[-] Pron MF SDK: mmap failed during simulation initialization");
+            perror("[-] Pronze SDK: mmap failed during simulation initialization");
             return -1;
         }
         
@@ -59,7 +59,7 @@ int pmfInit(PMFContext* ctx) {
         // Zero-out the mapped region to simulate clean memory
         memset(ctx->sim_outer_space, 0, ctx->sim_outer_size);
         
-        printf("[+] Pron MF SDK: User-space Simulation Container Mode Enabled.\n");
+        printf("[+] Pronze SDK: User-space Simulation Container Mode Enabled.\n");
         printf("    - Outer Space (Simulated System): %p (%zu bytes)\n", ctx->sim_outer_space, ctx->sim_outer_size);
         printf("    - Inner Space (Application Pool): %p (%zu bytes)\n", ctx->sim_inner_space, ctx->sim_inner_size);
     }
@@ -68,12 +68,12 @@ int pmfInit(PMFContext* ctx) {
 }
 
 // Load fault profile from JSON file (simple robust parser)
-int pmfLoadProfile(PMFContext* ctx, const char* profile_path) {
+int pronzeLoadProfile(PronzeContext* ctx, const char* profile_path) {
     if (!ctx) return -1;
     
     FILE* f = fopen(profile_path, "r");
     if (!f) {
-        printf("[-] Pron MF SDK Warning: Failed to open profile %s\n", profile_path);
+        printf("[-] Pronze SDK Warning: Failed to open profile %s\n", profile_path);
         return -1;
     }
     
@@ -89,7 +89,7 @@ int pmfLoadProfile(PMFContext* ctx, const char* profile_path) {
         if (val_ptr) {
             int rate = 0;
             if (sscanf(val_ptr + 1, "%d", &rate) == 1) {
-                pmfEnableAllocationFailure(ctx, rate);
+                pronzeEnableAllocationFailure(ctx, rate);
             }
         }
     }
@@ -97,31 +97,31 @@ int pmfLoadProfile(PMFContext* ctx, const char* profile_path) {
 }
 
 // Enable trace
-int pmfStartProfiling(PMFContext* ctx) {
+int pronzeStartProfiling(PronzeContext* ctx) {
     if (!ctx) return -1;
     
     if (ctx->simulation_mode == 0) {
-        if (ioctl(ctx->fd, PMF_IOCTL_START_TRACE) < 0) {
-            perror("[-] Pron MF SDK: ioctl PMF_IOCTL_START_TRACE failed");
+        if (ioctl(ctx->fd, PRONZE_IOCTL_START_TRACE) < 0) {
+            perror("[-] Pronze SDK: ioctl PRONZE_IOCTL_START_TRACE failed");
             return -1;
         }
     } else {
-        printf("[+] Pron MF SDK: User-space simulation trace started.\n");
+        printf("[+] Pronze SDK: User-space simulation trace started.\n");
     }
     return 0;
 }
 
 // Enable allocation failure rate
-int pmfEnableAllocationFailure(PMFContext* ctx, int failure_rate) {
+int pronzeEnableAllocationFailure(PronzeContext* ctx, int failure_rate) {
     if (!ctx) return -1;
     if (failure_rate < 0 || failure_rate > 100) return -1;
     
     ctx->failure_rate = failure_rate;
-    printf("[+] Pron MF SDK: Set allocation failure rate to %d%%\n", failure_rate);
+    printf("[+] Pronze SDK: Set allocation failure rate to %d%%\n", failure_rate);
     
     if (ctx->simulation_mode == 0) {
-        if (ioctl(ctx->fd, PMF_IOCTL_ENABLE_FAULT, failure_rate) < 0) {
-            perror("[-] Pron MF SDK: ioctl PMF_IOCTL_ENABLE_FAULT failed");
+        if (ioctl(ctx->fd, PRONZE_IOCTL_ENABLE_FAULT, failure_rate) < 0) {
+            perror("[-] Pronze SDK: ioctl PRONZE_IOCTL_ENABLE_FAULT failed");
             return -1;
         }
     }
@@ -129,7 +129,7 @@ int pmfEnableAllocationFailure(PMFContext* ctx, int failure_rate) {
 }
 
 // Allocate memory (with optional fault simulation)
-void* pmf_malloc(PMFContext* ctx, size_t size) {
+void* pronze_malloc(PronzeContext* ctx, size_t size) {
     if (!ctx) return NULL;
     
     void* ptr = NULL;
@@ -154,7 +154,7 @@ void* pmf_malloc(PMFContext* ctx, size_t size) {
             size_t aligned_size = (size + 7) & ~7;
             
             if (ctx->sim_offset + aligned_size > ctx->sim_inner_size) {
-                printf("[-] Pron MF SDK Simulation: Out of memory in Application Pool!\n");
+                printf("[-] Pronze SDK Simulation: Out of memory in Application Pool!\n");
                 ptr = NULL;
             } else {
                 ptr = (void*)((uintptr_t)ctx->sim_inner_space + ctx->sim_offset);
@@ -165,14 +165,14 @@ void* pmf_malloc(PMFContext* ctx, size_t size) {
     
     // In kernel mode, notify the driver of success/failure
     if (ctx->simulation_mode == 0 && ctx->fd >= 0) {
-        ioctl(ctx->fd, PMF_IOCTL_RECORD_MALLOC, ptr == NULL ? 1 : 0);
+        ioctl(ctx->fd, PRONZE_IOCTL_RECORD_MALLOC, ptr == NULL ? 1 : 0);
     }
     
     return ptr;
 }
 
 // Free memory
-void pmf_free(PMFContext* ctx, void* ptr) {
+void pronze_free(PronzeContext* ctx, void* ptr) {
     if (!ctx || !ptr) return;
     
     if (ctx->simulation_mode == 0) {
@@ -187,13 +187,13 @@ void pmf_free(PMFContext* ctx, void* ptr) {
         if (addr >= inner_start && addr < inner_end) {
             // Free succeeded logically
         } else {
-            printf("[-] Pron MF SDK Error: Invalid free on pointer %p outside Application Pool!\n", ptr);
+            printf("[-] Pronze SDK Error: Invalid free on pointer %p outside Application Pool!\n", ptr);
         }
     }
 }
 
 // Verify memory access bounds and log telemetry
-int pmfSimulateAccess(PMFContext* ctx, void* ptr) {
+int pronzeSimulateAccess(PronzeContext* ctx, void* ptr) {
     if (!ctx || !ptr) return -2;
     
     if (ctx->simulation_mode == 0) {
@@ -214,19 +214,19 @@ int pmfSimulateAccess(PMFContext* ctx, void* ptr) {
         return 0;
     } else if (addr >= outer_start && addr < outer_end) {
         // Out-of-bounds simulation breach!
-        printf("[!] Pron Telemetry: Containment breach! Out-of-bounds access detected at address %p\n", ptr);
+        printf("[!] Pronze Telemetry: Containment breach! Out-of-bounds access detected at address %p\n", ptr);
         printf("    - Outer Space range: [%p - %p]\n", (void*)outer_start, (void*)outer_end);
         printf("    - Inner Space range: [%p - %p]\n", (void*)inner_start, (void*)inner_end);
         return -1;
     } else {
         // Complete segmentation fault
-        printf("[CRITICAL] Pron Telemetry: Fault access outside sandbox memory space at address %p\n", ptr);
+        printf("[CRITICAL] Pronze Telemetry: Fault access outside sandbox memory space at address %p\n", ptr);
         return -2;
     }
 }
 
 // Clean up and shutdown
-int pmfShutdown(PMFContext* ctx) {
+int pronzeShutdown(PronzeContext* ctx) {
     if (!ctx) return -1;
     
     if (ctx->simulation_mode == 0) {
@@ -240,6 +240,6 @@ int pmfShutdown(PMFContext* ctx) {
             ctx->sim_outer_space = NULL;
         }
     }
-    printf("[+] Pron MF SDK: Shutdown complete.\n");
+    printf("[+] Pronze SDK: Shutdown complete.\n");
     return 0;
 }

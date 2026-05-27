@@ -1,5 +1,5 @@
 {
-    "name": "PronKern - Linux x86_64 Build",
+    "name": "PronzeOS - Linux x86_64 Build",
     "build": {
         "dockerfile": "Dockerfile",
         "context": "..",
@@ -7,7 +7,7 @@
             "VARIANT": "24.04"
         }
     },
-    "workspaceFolder": "/workspaces/PronKern",
+    "workspaceFolder": "/workspaces/PronzeOS",
     "remoteUser": "vscode",
     "postCreateCommand": "bash .devcontainer/post-create.sh",
     "runArgs": [

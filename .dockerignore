@@ -1,3 +1,5 @@
 .git
 linux
 **/.DS_Store
+.builthash
+.output-nochanges

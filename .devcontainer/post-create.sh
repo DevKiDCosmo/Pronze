@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../scripts/utils/log_lib.sh"
 
 create_cpp_properties() {
-    local workspace="/workspaces/PronKern"
+    local workspace="/workspaces/PronzeOS"
     local vscode_dir="$workspace/.vscode"
     local cpp_props="$vscode_dir/c_cpp_properties.json"
     local clangd_cfg="$workspace/.clangd"
@@ -105,7 +105,7 @@ create_cpp_properties() {
     log_success "Generated clangd fallback config: $clangd_cfg"
 }
 
-log_section "PronKern Dev Container Ready" 58
+log_section "PronzeOS Dev Container Ready" 58
 
 mkdir -p build logs output
 

@@ -1,11 +1,11 @@
 #include <iostream>
-#include <pmf/pronmf.hpp>
+#include <pronze/pronze.hpp>
 
 int main() {
     std::cout << "[+] Starting C++ memory containment boundary verification test..." << std::endl;
     
     try {
-        pronmf::PronMFContext mfc;
+        pronze::PronzeContext mfc;
         
         // 1. Valid allocation test
         void* valid_ptr = mfc.allocate(1024);
@@ -25,7 +25,7 @@ int main() {
         
         // 2. Out-of-bounds containment breach simulation
         // Calculate an address that is inside the "Outer Space" but outside the "Inner Space" (Application Pool)
-        PMFContext* raw_ctx = mfc.getRawContext();
+        ::PronzeContext* raw_ctx = mfc.getRawContext();
         if (raw_ctx->simulation_mode == 1) {
             // Inner Space starts at 2MB offset, so 1MB offset is inside Outer Space but outside Inner Space
             uintptr_t breach_addr = reinterpret_cast<uintptr_t>(raw_ctx->sim_outer_space) + 1024 * 1024;

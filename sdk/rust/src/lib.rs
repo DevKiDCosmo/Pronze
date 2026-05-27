@@ -1,7 +1,7 @@
-pub struct PronMF;
+pub struct Pronze;
 
-impl PronMF {
-    /// Initialize the PronMF engine (Not Implemented)
+impl Pronze {
+    /// Initialize the Pronze engine (Not Implemented)
     pub fn new() -> Result<Self, &'static str> {
         Err("Rust SDK FFI Not Implemented")
     }
@@ -14,7 +14,7 @@ impl PronMF {
     /// Free allocated memory block (Not Implemented)
     pub fn free(&mut self, _ptr: *mut std::os::raw::c_void) {}
 
-    /// Simulate memory access verification (Not Implemented)
+    /// Simulate memory memory access verification (Not Implemented)
     pub fn simulate_access(&mut self, _ptr: *mut std::os::raw::c_void) -> i32 {
         -1
     }

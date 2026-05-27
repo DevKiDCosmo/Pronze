@@ -1,8 +1,8 @@
-# PronKern — Framework & Distribution Architecture
+# PronzeOS — Framework & Distribution Architecture
 
-PronKern is a deterministic systems engineering and fault-injection Linux distribution. It is designed for compiler testing, runtime verification, and deterministic system behavior analysis.
+PronzeOS is a deterministic systems engineering and fault-injection Linux distribution. It is designed for compiler testing, runtime verification, and deterministic system behavior analysis (also known under the aliases **SchnellOS** and **ProntoOS**).
 
-This repository contains the core software components of the PronKern user-space and kernel interface framework.
+This repository contains the core software components of the PronzeOS user-space and kernel interface framework.
 
 ---
 
@@ -14,18 +14,18 @@ This repository contains the core software components of the PronKern user-space
        └───────────────────────────┬────────────────────────────┘
                                    │
        ┌───────────────────────────▼────────────────────────────┐
-       │        MemFault SDK (C / C++ / Rust / Zig API)         │
+       │        Pronze SDK (C / C++ / Rust / Zig API)         │
        └───────────────────────────┬────────────────────────────┘
                                    │
             ┌──────────────────────┴──────────────────────┐
             ▼ (Kernel Available?)                         ▼ (Fallback Simulation)
   ┌──────────────────────────┐               ┌──────────────────────────┐
-  │   /dev/memfault Driver   │               │   User-space Container   │
-  │     (memfault_core)      │               │   (Memory Sandbox Map)   │
+  │   /dev/pronze Driver     │               │   User-space Container   │
+  │        (pronze)          │               │   (Memory Sandbox Map)   │
   └─────────────┬────────────┘               └────────────┬─────────────┘
                 │                                         │
   ┌─────────────▼────────────┐                            │
-  │     memfaultd Daemon     │◄───────────────────────────┘
+  │     pronzed Daemon     │◄───────────────────────────┘
   │ (IPC socket configuration)│
   └──────────────────────────┘
 ```
@@ -34,39 +34,39 @@ This repository contains the core software components of the PronKern user-space
 
 ## Directory Layout
 
-- [sdk/c/](file:///Users/duynamschlitz/GitProject/PronKern/sdk/c): The primary FFI C SDK (`libmemfault.so`) implementing the allocation hooks and boundary sandbox container.
-- [sdk/cpp/](file:///Users/duynamschlitz/GitProject/PronKern/sdk/cpp): RAII C++ wrapper (`memfault.hpp`).
-- [sdk/rust/](file:///Users/duynamschlitz/GitProject/PronKern/sdk/rust): Idiomatic Rust crate (`memfault`) wrapping the C ABI.
-- [sdk/zig/](file:///Users/duynamschlitz/GitProject/PronKern/sdk/zig): Zig module bindings (`memfault.zig`).
-- [daemon/](file:///Users/duynamschlitz/GitProject/PronKern/daemon): Rust runtime daemon (`memfaultd`) handling sockets, configs, and rollback telemetry.
-- [kernel/](file:///Users/duynamschlitz/GitProject/PronKern/kernel): Loadable C kernel module (`memfault_core`) exposing `/dev/memfault` controls.
-- [profiles/](file:///Users/duynamschlitz/GitProject/PronKern/profiles): Default JSON fault configurations.
-- [scripts/](file:///Users/duynamschlitz/GitProject/PronKern/scripts): Kernel compilation, machine setup, and testing orchestration scripts.
-- [test/](file:///Users/duynamschlitz/GitProject/PronKern/test): Verification scripts for checking allocation failures and boundary tracking.
+- [sdk/c/](file:///Users/duynamschlitz/GitProject/PronzeOS/sdk/c): The primary FFI C SDK (`libpronze.so`) implementing the allocation hooks and boundary sandbox container.
+- [sdk/cpp/](file:///Users/duynamschlitz/GitProject/PronzeOS/sdk/cpp): RAII C++ wrapper (`pronze.hpp`).
+- [sdk/rust/](file:///Users/duynamschlitz/GitProject/PronzeOS/sdk/rust): Idiomatic Rust crate (`pronze`) wrapping the C ABI.
+- [sdk/zig/](file:///Users/duynamschlitz/GitProject/PronzeOS/sdk/zig): Zig module bindings (`pronze.zig`).
+- [daemon/](file:///Users/duynamschlitz/GitProject/PronzeOS/daemon): Rust runtime daemon (`pronzed`) handling sockets, configs, and rollback telemetry.
+- [kernel/](file:///Users/duynamschlitz/GitProject/PronzeOS/kernel): Loadable C kernel module (`pronze`) exposing `/dev/pronze` controls.
+- [profiles/](file:///Users/duynamschlitz/GitProject/PronzeOS/profiles): Default JSON fault configurations.
+- [scripts/](file:///Users/duynamschlitz/GitProject/PronzeOS/scripts): Kernel compilation, machine setup, and testing orchestration scripts.
+- [test/](file:///Users/duynamschlitz/GitProject/PronzeOS/test): Verification scripts for checking allocation failures and boundary tracking.
 
 ---
 
 ## SDK Language Integration Examples
 
-PronKern is designed for multi-language systems development. Below is how you can use the SDK in different languages:
+PronzeOS is designed for multi-language systems development. Below is how you can use the SDK in different languages:
 
 ### 1. C
 
 ```c
-#include <memfault/memfault.h>
+#include <pronze/pronze.h>
 
 int main() {
-    MFContext ctx;
-    mfInit(&ctx);
-    mfEnableAllocationFailure(&ctx, 10); // 10% failure rate
+    PronzeContext ctx;
+    pronzeInit(&ctx);
+    pronzeEnableAllocationFailure(&ctx, 10); // 10% failure rate
 
-    void* ptr = mf_malloc(&ctx, 1024);
+    void* ptr = pronze_malloc(&ctx, 1024);
     if (!ptr) {
         // Handle injected failure
     }
 
-    mf_free(&ctx, ptr);
-    mfShutdown(&ctx);
+    pronze_free(&ctx, ptr);
+    pronzeShutdown(&ctx);
     return 0;
 }
 ```
@@ -74,10 +74,10 @@ int main() {
 ### 2. C++
 
 ```cpp
-#include <memfault/memfault.hpp>
+#include <pronze/pronze.hpp>
 
 int main() {
-    memfault::MemFaultContext mfc;
+    pronze::PronzeContext mfc;
     mfc.enableAllocationFailure(10);
 
     void* ptr = mfc.allocate(1024);
@@ -89,10 +89,10 @@ int main() {
 ### 3. Rust
 
 ```rust
-use memfault::MemFault;
+use pronze::Pronze;
 
 fn main() {
-    let mut mf = MemFault::new().unwrap();
+    let mut mf = Pronze::new().unwrap();
     mf.enable_allocation_failure(10).unwrap();
 
     let ptr = mf.malloc(1024);
@@ -104,10 +104,10 @@ fn main() {
 
 ```zig
 const std = @import("std");
-const memfault = @import("memfault");
+const pronze = @import("pronze");
 
 pub fn main() !void {
-    var mf = try memfault.MemFault.init();
+    var mf = try pronze.Pronze.init();
     defer mf.deinit();
 
     try mf.enableAllocationFailure(10);
@@ -138,17 +138,12 @@ To build and run the verification tests inside a clean, reproducible container:
 
 ```bash
 # Build the Docker environment
-docker build -t PronKern:latest .
+docker build -t pronzeos:latest .
 
 # Run the test suite
-docker run --rm PronKern:latest
+docker run --rm pronzeos:latest
 
-
-docker run --rm memfaultos:latest > out.log
-docker build -t memfaultos:latest .
-
-docker run --rm -v $(pwd)/output:/workspace/output memfaultos-builder
-docker run --rm -v "$(pwd):/workspace" -v memfaultos-cache:/opt/memfaultos memfaultos-builder:latest
+docker run --rm -v "$(pwd):/workspace" -v pronze-cache:/opt/pronze pronzeos:latest
 ```
 
 ### Dev Container for Linux Kernel Module Development

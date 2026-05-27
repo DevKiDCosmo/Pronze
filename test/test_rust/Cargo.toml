@@ -5,7 +5,7 @@ edition = "2021"
 publish = false
 
 [dependencies]
-pronmf = { path = "../../sdk/rust" }
+pronze = { path = "../../sdk/rust" }
 
 [profile.release]
 panic = "abort"
