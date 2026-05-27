@@ -67,13 +67,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         loop {
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
             let s = telemetry_state.lock().await;
-            println!("[Telemetry] --- Pron OS Status ---");
-            println!("  - Active Partition: {}", s.active_partition);
-            println!("  - Kernel Mode: {}", if s.kernel_driver_active { "Active" } else { "Simulated (User-space)" });
-            println!("  - Allocation Failure Rate: {}%", s.current_profile.allocation_failure_rate);
-            println!("  - Guard Pages Enabled: {}", s.current_profile.guard_pages);
-            println!("  - Simulation Latency: {} ms", s.current_profile.latency_ms);
-            println!("----------------------------------_");
+            // println!("[Telemetry] --- Pron OS Status ---");
+            // println!("  - Active Partition: {}", s.active_partition);
+            // println!("  - Kernel Mode: {}", if s.kernel_driver_active { "Active" } else { "Simulated (User-space)" });
+            // println!("  - Allocation Failure Rate: {}%", s.current_profile.allocation_failure_rate);
+            // println!("  - Guard Pages Enabled: {}", s.current_profile.guard_pages);
+            // println!("  - Simulation Latency: {} ms", s.current_profile.latency_ms);
+            // println!("----------------------------------_");
         }
     });
     

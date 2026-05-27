@@ -15,6 +15,7 @@ vmlinuz
 *.so
 *.o
 *.ko
+*.o.d
 
 # Rust build target directories
 target/

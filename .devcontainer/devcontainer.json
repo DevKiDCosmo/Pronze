@@ -1,10 +1,13 @@
 {
-    "name": "PronKern Linux Kernel Module Dev",
+    "name": "PronKern - Linux x86_64 Build",
     "build": {
         "dockerfile": "Dockerfile",
-        "context": ".."
+        "context": "..",
+        "args": {
+            "VARIANT": "24.04"
+        }
     },
-    "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+    "workspaceFolder": "/workspaces/PronKern",
     "remoteUser": "vscode",
     "postCreateCommand": "bash .devcontainer/post-create.sh",
     "runArgs": [
@@ -16,14 +19,23 @@
             "extensions": [
                 "ms-vscode.cpptools",
                 "ms-vscode.makefile-tools",
-                "llvm-vs-code-extensions.vscode-clangd",
                 "vadimcn.vscode-lldb"
             ],
             "settings": {
                 "terminal.integrated.defaultProfile.linux": "bash",
                 "files.eol": "\n",
                 "editor.formatOnSave": true,
-                "C_Cpp.default.configurationProvider": "ms-vscode.makefile-tools"
+                "C_Cpp.default.intelliSenseMode": "linux-clang-x64",
+                "C_Cpp.default.compilerPath": "/usr/bin/clang",
+                "C_Cpp.default.defines": [
+                    "__KERNEL__",
+                    "MODULE"
+                ],
+                "C_Cpp.default.includePath": [
+                    "${workspaceFolder}/**",
+                    "/usr/include/**",
+                    "/usr/src/**"
+                ]
             }
         }
     }

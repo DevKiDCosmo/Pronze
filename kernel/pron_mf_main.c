@@ -4,6 +4,8 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
+#include "_page_pr.h"
+
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("PronKern Team");
 MODULE_DESCRIPTION("Pron MF Core fault injection and tracing engine driver");
@@ -19,19 +21,43 @@ MODULE_VERSION("0.1");
 #define PMF_IOCTL_SET_PROFILE   0x1002
 #define PMF_IOCTL_START_TRACE   0x1003
 #define PMF_IOCTL_RECORD_MALLOC 0x1004
+#define PMF_PAGE_ORDER          10
 
 static int fault_rate = 2;
 static int malloc_success_count = 0;
 static int malloc_failure_count = 0;
 
+
 static char telemetry_buf[512];
 
 static int device_open(struct inode *inode, struct file *file) {
+    int ret = 0;
+    int *addr1;
+
     pr_info("pron_mf_core: Device opened\n");
+
+    pr_info("Init DEVICE.\n");
+    pr_info("OPEN FOR USE. Move BLOCK to /dev/%s \n", DEVICE_NAME);
+
+    /* Test 1: Standard allocation function */
+    pr_info("pron_mf_core: Testing __page_allocation_function(order=%d)\n", PMF_PAGE_ORDER);
+    ret = __page_allocation_function(PMF_PAGE_ORDER);
+    if (ret == 0) {
+        addr1 = __page_aladdr();
+        pr_info("pron_mf_core: __page_allocation_function succeeded, addr: %p\n", addr1);
+    } else {
+        pr_err("pron_mf_core: __page_allocation_function failed: %d\n", ret);
+    }
+
+    /* Test 2: Cleanup helper path remains in C only */
+    pr_info("pron_mf_core: Using C-only page helper routines\n");
+
     return 0;
 }
 
 static int device_release(struct inode *inode, struct file *file) {
+    pr_info("pron_mf_core: Releasing device. Cleaning up remaining pages...\n");
+    page_pr_cleanup();
     pr_info("pron_mf_core: Device closed\n");
     return 0;
 }
@@ -122,6 +148,7 @@ static int __init pron_mf_init(void) {
 }
 
 static void __exit pron_mf_exit(void) {
+    page_pr_cleanup();
     unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
     unregister_chrdev(TELEMETRICS_MAJOR_NUM, TELEMETRICS_DEVICE_NAME);
     pr_info("pron_mf_core: Devices unregistered successfully\n");
