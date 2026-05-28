@@ -55,16 +55,34 @@ done
 
 # 6. If running on host (not in Docker) and docker command exists, clean Docker persistent cache volumes
 if [ ! -f /.dockerenv ] && command -v docker &>/dev/null; then
+    WS_BASE="$(basename "$WORKSPACE_DIR")"
     if [ "$REMOVE_TARS" = "true" ]; then
         echo "[+] Detected host environment. Purging Docker cache volumes..."
+        
+        # Purge standard volumes
         docker run --rm -v pronkern-cache:/opt/pronkern ubuntu:24.04 find /opt/pronkern -mindepth 1 -delete 2>/dev/null || true
         docker run --rm -v pronze-cache:/opt/pronze ubuntu:24.04 find /opt/pronze -mindepth 1 -delete 2>/dev/null || true
         docker volume rm pronkern-cache 2>/dev/null || true
         docker volume rm pronze-cache 2>/dev/null || true
+        
+        # Purge worktree-specific volumes
+        if [ "$WS_BASE" != "PronKern" ] && [ -n "$WS_BASE" ]; then
+            echo "[+] Purging worktree-specific Docker cache volumes for $WS_BASE..."
+            docker run --rm -v "pronkern-cache-${WS_BASE}:/opt/pronkern" ubuntu:24.04 find /opt/pronkern -mindepth 1 -delete 2>/dev/null || true
+            docker run --rm -v "pronze-cache-${WS_BASE}:/opt/pronze" ubuntu:24.04 find /opt/pronze -mindepth 1 -delete 2>/dev/null || true
+            docker volume rm "pronkern-cache-${WS_BASE}" 2>/dev/null || true
+            docker volume rm "pronze-cache-${WS_BASE}" 2>/dev/null || true
+        fi
     else
         echo "[+] Detected host environment. Cleaning extracted sources inside Docker cache volumes..."
         docker run --rm -v pronkern-cache:/opt/pronkern ubuntu:24.04 rm -rf /opt/pronkern/src 2>/dev/null || true
         docker run --rm -v pronze-cache:/opt/pronze ubuntu:24.04 rm -rf /opt/pronze/src 2>/dev/null || true
+        
+        if [ "$WS_BASE" != "PronKern" ] && [ -n "$WS_BASE" ]; then
+            echo "[+] Cleaning worktree-specific Docker cache volumes for $WS_BASE..."
+            docker run --rm -v "pronkern-cache-${WS_BASE}:/opt/pronkern" ubuntu:24.04 rm -rf /opt/pronkern/src 2>/dev/null || true
+            docker run --rm -v "pronze-cache-${WS_BASE}:/opt/pronze" ubuntu:24.04 rm -rf /opt/pronze/src 2>/dev/null || true
+        fi
     fi
 fi
 

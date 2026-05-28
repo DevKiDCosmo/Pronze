@@ -91,6 +91,26 @@ qemu_process = None
 qemu_log_buffer = ""
 qemu_lock = threading.Lock()
 qemu_reader_thread = None
+qemu_display_mode = "serial"
+qemu_pull_rate = 100
+qemu_batch_buffer = ""
+qemu_batch_lock = threading.Lock()
+qemu_flusher_thread = None
+
+# Build archiving and tracking state
+build_number = 0
+build_uuid = "N/A"
+
+def init_build_info(workspace_dir):
+    global build_number
+    archive_dir = os.path.join(workspace_dir, ".archive")
+    build_number_file = os.path.join(archive_dir, "build_number")
+    if os.path.exists(build_number_file):
+        try:
+            with open(build_number_file, 'r') as f:
+                build_number = int(f.read().strip())
+        except Exception:
+            pass
 
 def set_runtime_flags(no_logs, no_logs_terminal, no_view=False):
     global no_logs_flag, no_logs_terminal_flag, no_view_flag
@@ -255,8 +275,8 @@ def analyze_compilation_files(context):
                 return total_t
         return default_val
 
-    kernel_cnt = get_count(kernel_match, os.path.join(context.src_dir, f"linux-{linux_ver}"), [os.path.join(context.download_dir, f"linux-{linux_ver}.tar.xz")], 60000)
-    busybox_cnt = get_count(busybox_match, os.path.join(context.src_dir, f"busybox-{busybox_ver}"), [os.path.join(context.download_dir, f"busybox-{busybox_ver}.tar.bz2")], 1000)
+    kernel_cnt = get_count(kernel_match, os.path.join(context.src_dir, f"linux-{linux_ver}"), [os.path.join(context.download_dir, f"linux-{linux_ver}.tar.xz")], 0)
+    busybox_cnt = get_count(busybox_match, os.path.join(context.src_dir, f"busybox-{busybox_ver}"), [os.path.join(context.download_dir, f"busybox-{busybox_ver}.tar.bz2")], 0)
     
     s6_tarball_paths = [
         os.path.join(context.download_dir, f"skalibs-{skalibs_ver}.tar.gz"),
@@ -273,16 +293,16 @@ def analyze_compilation_files(context):
             for tp in s6_tarball_paths:
                 s6_cnt += count_tarball_files(tp)
         if s6_cnt == 0:
-            s6_cnt = 800
+            s6_cnt = 0
 
-    mod_cnt = get_count(kernel_mod_match, os.path.join(context.workspace_dir, "kernel"), None, 5)
+    mod_cnt = get_count(kernel_mod_match, os.path.join(context.workspace_dir, "kernel"), None, 0)
     
     sdk_cnt = 0
     if not sdk_match:
         sdk_cnt += count_compilable_files(os.path.join(context.workspace_dir, "sdk"))
         sdk_cnt += count_compilable_files(os.path.join(context.workspace_dir, "test"))
         
-    daemon_cnt = get_count(daemon_match, os.path.join(context.workspace_dir, "daemon"), None, 10)
+    daemon_cnt = get_count(daemon_match, os.path.join(context.workspace_dir, "daemon"), None, 0)
 
     compilation_analyzer_data = {
         "CompileKernel": {"files": kernel_cnt, "status": "Cached" if kernel_match else "Needs Compile"},
