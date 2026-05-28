@@ -47,19 +47,21 @@ rm -f "$WORKSPACE_DIR"/test/pronze.zig
 rm -f "$WORKSPACE_DIR"/test_zig
 rm -f "$WORKSPACE_DIR"/test_zig.o
 
-# 5. Clean kernel module build artifacts
-echo "[+] Cleaning kernel module build artifacts..."
-if [ -d "$WORKSPACE_DIR/kernel" ]; then
-    rm -f "$WORKSPACE_DIR"/kernel/*.o
-    rm -f "$WORKSPACE_DIR"/kernel/*.ko
-    rm -f "$WORKSPACE_DIR"/kernel/*.mod
-    rm -f "$WORKSPACE_DIR"/kernel/*.mod.c
-    rm -f "$WORKSPACE_DIR"/kernel/*.cmd
-    rm -f "$WORKSPACE_DIR"/kernel/modules.order
-    rm -f "$WORKSPACE_DIR"/kernel/Module.symvers
-    rm -rf "$WORKSPACE_DIR"/kernel/.tmp_versions
-    rm -f "$WORKSPACE_DIR"/kernel/.*.cmd
-fi
+# 5. Clean kernel module and compilation artifacts recursively
+echo "[+] Cleaning compilation and kernel module build artifacts recursively..."
+find "$WORKSPACE_DIR" -path "*/.git" -prune -o -type f \( \
+    -name "*.o" -o \
+    -name "*.ko" -o \
+    -name "*.mod" -o \
+    -name "*.mod.c" -o \
+    -name "*.cmd" -o \
+    -name ".*.cmd" -o \
+    -name "modules.order" -o \
+    -name "Module.symvers" \
+\) -exec rm -f {} +
+
+find "$WORKSPACE_DIR" -path "*/.git" -prune -o -type d -name ".tmp_versions" -exec rm -rf {} +
+
 
 # 6. Clean host system logs or other temporary artifacts in workspace
 echo "[+] Removing build logs..."

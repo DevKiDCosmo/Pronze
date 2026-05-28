@@ -26,7 +26,8 @@ from stages import (
     PackageBtrfsImageStage,
     PackageESPImageStage,
     AssembleGPTImageStage,
-    ShipImageStage
+    ShipImageStage,
+    CopyConfigurationSetupStage
 )
 
 def main():
@@ -46,12 +47,6 @@ def main():
     context = PipelineContext(args.target, workspace_dir, opt_dir)
     print_status_table(context)
 
-    if not args.no_view:
-        try:
-            start_http_server(args.port)
-        except Exception as e:
-            Logger.log_warn(f"Failed to start http server: {e}")
-
     pipeline = Pipeline()
     
     # Add stages in dependency order
@@ -65,16 +60,24 @@ def main():
     pipeline.add_node(CompileSDKStage())
     pipeline.add_node(CompileDaemonStage())
     pipeline.add_node(AssembleRootfsStage())
+    pipeline.add_node(CopyConfigurationSetupStage())
     pipeline.add_node(PackageBtrfsImageStage())
     pipeline.add_node(PackageESPImageStage())
     pipeline.add_node(AssembleGPTImageStage())
     pipeline.add_node(ShipImageStage())
 
     pipeline.build_graph()
-    pipeline.execute(context)
 
-    Logger.log_success("Build finished!")
     if not args.no_view:
+        from common import build_queue, start_http_server
+        try:
+            start_http_server(args.port)
+        except Exception as e:
+            Logger.log_warn(f"Failed to start http server: {e}")
+        
+        # Enqueue the first build run
+        build_queue.put((context, pipeline))
+        
         Logger.log_info(f"Web GUI is active at http://localhost:{args.port}")
         Logger.log_info("Press Ctrl+C to exit and stop the server.")
         try:
@@ -82,6 +85,10 @@ def main():
                 time.sleep(1)
         except KeyboardInterrupt:
             Logger.log_info("Stopping server and exiting.")
+    else:
+        # Run synchronously if no-view is specified
+        pipeline.execute(context)
+        Logger.log_success("Build finished!")
 
 if __name__ == '__main__':
     main()

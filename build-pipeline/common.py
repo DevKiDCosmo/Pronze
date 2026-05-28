@@ -73,6 +73,25 @@ node_states = {}
 detected_changes = []
 current_hashes_prefix = {}
 
+# Authentication and env state
+PORTAL_PASSWORD = "root"
+
+# Background worker queues and QEMU guest state
+build_queue = queue.Queue()
+build_active = False
+build_completed = False
+total_build_time = 0.0
+final_status_text = ""
+
+global_context = None
+global_pipeline = None
+
+# QEMU process variables
+qemu_process = None
+qemu_log_buffer = ""
+qemu_lock = threading.Lock()
+qemu_reader_thread = None
+
 def set_runtime_flags(no_logs, no_logs_terminal, no_view=False):
     global no_logs_flag, no_logs_terminal_flag, no_view_flag
     no_logs_flag = no_logs
@@ -410,10 +429,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             gap: 1.5rem;
         }
 
-        /* Akkon-style Box */
+        /* Frosted Glass Console Box with Grain Overlay */
         .console-box {
             border: 3px solid var(--border-color);
-            background: #ffffff;
+            background-color: rgba(255, 255, 255, 0.75);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.06'/%3E%3C/svg%3E");
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             box-shadow: 4px 4px 0px var(--border-color);
             margin-bottom: 1.5rem;
             position: relative;
@@ -478,6 +500,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         .status-dot.building { background: #fcc419; animation: blink 1s infinite; }
         .status-dot.success { background: #37b24d; }
         .status-dot.failed { background: #f03e3e; }
+        .status-dot.idle { background: #adb5bd; }
 
         @keyframes blink {
             50% { opacity: 0; }
@@ -555,10 +578,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             display: none;
         }
 
-        /* Node Card */
+        /* Node Card with Grain Overlay */
         .node-card {
             border: 3px solid var(--border-color);
-            background: #ffffff;
+            background-color: rgba(255, 255, 255, 0.75);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.06'/%3E%3C/svg%3E");
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             padding: 0.75rem 1rem;
             width: 200px;
             box-shadow: 4px 4px 0px var(--border-color);
@@ -574,7 +600,7 @@ HTML_CONTENT = """<!DOCTYPE html>
         }
 
         .node-card.selected {
-            background: #fff9db !important;
+            background-color: #fff9db !important;
             border-color: #f59f00;
             box-shadow: 4px 4px 0px #f59f00;
         }
@@ -641,9 +667,165 @@ HTML_CONTENT = """<!DOCTYPE html>
         .duration-table th {
             background: #f1f3f5;
         }
+
+        /* Administrative Actions Styling */
+        .control-btn {
+            border: 3px solid var(--border-color);
+            background: #ffffff;
+            color: var(--text-color);
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 800;
+            font-size: 0.8rem;
+            padding: 0.45rem 0.8rem;
+            cursor: pointer;
+            box-shadow: 2px 2px 0px var(--border-color);
+            transition: transform 0.1s, box-shadow 0.1s;
+            text-transform: uppercase;
+        }
+        .control-btn:hover {
+            background: #f1f3f5;
+        }
+        .control-btn:active {
+            transform: translate(1px, 1px);
+            box-shadow: 1px 1px 0px var(--border-color);
+        }
+        .control-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: 2px 2px 0px var(--border-color) !important;
+        }
+        .control-btn.warning {
+            border-color: #f59f00;
+            color: #f59f00;
+            box-shadow: 2px 2px 0px #f59f00;
+        }
+        .control-btn.warning:hover {
+            background: #fff9db;
+        }
+        .control-btn.danger {
+            border-color: #f03e3e;
+            color: #f03e3e;
+            box-shadow: 2px 2px 0px #f03e3e;
+        }
+        .control-btn.danger:hover {
+            background: #fff5f5;
+        }
+        .control-btn.accent {
+            border-color: #1a1a1a;
+            background: #1a1a1a;
+            color: #ffffff;
+            box-shadow: 2px 2px 0px var(--border-color);
+        }
+        .control-btn.accent:hover {
+            background: #2b2b2b;
+        }
+
+        /* Glassmorphism Password modal */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.25s ease;
+        }
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .modal-box {
+            border: 3px solid var(--border-color);
+            background-color: rgba(255, 255, 255, 0.85);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.06'/%3E%3C/svg%3E");
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            box-shadow: 6px 6px 0px var(--border-color);
+            padding: 1.5rem;
+            width: 380px;
+            position: relative;
+        }
+        .modal-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 800;
+            font-size: 0.95rem;
+            border-bottom: 3px solid var(--border-color);
+            margin: -1.5rem -1.5rem 1rem -1.5rem;
+            padding: 0.6rem 1.5rem;
+            background: #1a1a1a;
+            color: #ffffff;
+            text-transform: uppercase;
+        }
+        .modal-input {
+            width: 100%;
+            box-sizing: border-box;
+            border: 3px solid var(--border-color);
+            padding: 0.5rem 0.75rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            margin-bottom: 0.75rem;
+            outline: none;
+            background: #faf9f6;
+        }
+        .modal-input:focus {
+            background: #ffffff;
+        }
+
+        /* QEMU Terminal Console style */
+        .terminal-view {
+            border: 3px solid var(--border-color);
+            background: #0c0c0c;
+            color: #4af626;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            height: 350px;
+            overflow-y: auto;
+            padding: 0.75rem;
+            box-shadow: inset 0px 0px 10px rgba(0, 0, 0, 0.8);
+            line-height: 1.3;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .term-tstamp { color: #868e96; font-weight: bold; }
+        .term-check { color: #37b24d; font-weight: bold; }
+        .term-check-text { color: #8ce99a; }
+        .term-error { color: #fa5252; font-weight: bold; }
+        .term-error-text { color: #ffc9c9; }
+        .term-warn { color: #fcc419; font-weight: bold; }
+        .term-warn-text { color: #ffe066; }
+        .term-info { color: #339af0; font-weight: bold; }
+        .term-step { color: #15aabf; font-weight: bold; }
     </style>
 </head>
 <body>
+    <!-- Password overlay modal -->
+    <div class="modal-overlay" id="auth-modal">
+        <div class="modal-box">
+            <div class="modal-title">Authentication Required</div>
+            <p style="font-size: 0.85rem; margin-top: 0; color: #495057;">Enter your Portal Password to proceed with this operation.</p>
+            <input type="password" class="modal-input" id="auth-pw-input" placeholder="Password" onkeydown="if(event.key==='Enter') submitAuth()" />
+            <div style="margin-bottom: 1rem;">
+                <label style="font-size: 0.8rem; display: flex; align-items: center; gap: 0.25rem; font-weight: bold; cursor: pointer;">
+                    <input type="checkbox" id="auth-remember-cb" checked /> Remember password in this browser
+                </label>
+            </div>
+            <div id="auth-error-msg" style="color: #f03e3e; font-size: 0.8rem; font-weight: bold; margin-bottom: 1rem;"></div>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button class="control-btn" onclick="hideAuthModal()">Cancel</button>
+                <button class="control-btn accent" onclick="submitAuth()">Verify</button>
+            </div>
+        </div>
+    </div>
+
     <div class="top-header">
         <h1>PRONZE OS BUILD SYSTEM</h1>
         <div class="status-badge" id="global-status">
@@ -684,6 +866,18 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
 
             <div class="console-box">
+                <div class="console-box-title">ADMIN CONTROLS</div>
+                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button class="control-btn accent" onclick="triggerRebuild()">REBUILD PIPELINE</button>
+                    <button class="control-btn warning" onclick="triggerClean()">CLEAN WORKSPACE</button>
+                    <button class="control-btn danger" onclick="triggerFclean()">FCLEAN (RESET ALL)</button>
+                    <label style="font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; font-weight: bold; display: flex; align-items: center; gap: 0.25rem; margin-top: 0.25rem; cursor: pointer; color: #495057;">
+                        <input type="checkbox" id="fclean-kill-tars-cb" /> Also delete downloaded tarballs
+                    </label>
+                </div>
+            </div>
+
+            <div class="console-box">
                 <div class="console-box-title">COMPILATION ANALYZER</div>
                 <div class="metric-row">
                     <span>FILES TO COMPILE</span>
@@ -702,7 +896,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             </div>
         </div>
 
-        <!-- Right Side: DAG -->
+        <!-- Right Side: DAG and QEMU Console -->
         <div class="right-panel">
             <div class="console-box">
                 <div class="console-box-title">PIPELINE STAGES (DAG)</div>
@@ -779,6 +973,15 @@ HTML_CONTENT = """<!DOCTYPE html>
                         </div>
                     </div>
 
+                    <!-- Level 5.5 (New stage) -->
+                    <div class="stage-row">
+                        <div class="node-card pending" id="node-CopyConfigurationSetup" onclick="selectStage('CopyConfigurationSetup')">
+                            <div class="node-name">Copy Setup Files</div>
+                            <span class="node-status-label" id="status-CopyConfigurationSetup">Pending</span>
+                            <span class="node-duration" id="duration-CopyConfigurationSetup"></span>
+                        </div>
+                    </div>
+
                     <!-- Level 6 -->
                     <div class="stage-row">
                         <div class="node-card pending" id="node-PackageBtrfsImage" onclick="selectStage('PackageBtrfsImage')">
@@ -812,10 +1015,35 @@ HTML_CONTENT = """<!DOCTYPE html>
                     </div>
                 </div>
             </div>
-            
+
             <div class="console-box" id="final-report-box" style="display: none;">
                 <div class="console-box-title">FINAL BUILD TIMING REPORT</div>
                 <div id="final-report-content"></div>
+            </div>
+
+            <!-- QEMU Console Container -->
+            <div class="console-box" id="qemu-console-box">
+                <div class="console-box-title">
+                    <span>QEMU GUEST CONSOLE</span>
+                    <span id="qemu-status-text" style="color: #adb5bd;">STOPPED</span>
+                </div>
+                
+                <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <button class="control-btn" id="qemu-start-btn" onclick="triggerQemuStart()">START QEMU</button>
+                    <button class="control-btn danger" id="qemu-stop-btn" onclick="triggerQemuStop()" disabled>STOP QEMU</button>
+                    <a id="download-btn-link" href="#" style="text-decoration: none; margin-left: auto;">
+                        <button class="control-btn accent" id="download-image-btn" onclick="triggerDownload(event)">DOWNLOAD IMAGE</button>
+                    </a>
+                </div>
+
+                <div id="qemu-log-terminal" class="terminal-view">
+                    <div style="color: #666; font-style: italic; font-family: 'JetBrains Mono', monospace;">Console inactive. Click 'START QEMU' to boot the PronzeOS guest VM.</div>
+                </div>
+                
+                <div id="qemu-input-container" style="display: flex; margin-top: 0.75rem; border: 3px solid var(--border-color); display: none;">
+                    <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: bold; background: #1a1a1a; color: white; padding: 0.45rem 0.75rem;">guest$</span>
+                    <input type="text" id="qemu-input-field" placeholder="Type command to guest shell and press Enter..." style="flex: 1; border: none; padding: 0.45rem 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; background: #faf9f6;" onkeydown="sendQemuInput(event)" />
+                </div>
             </div>
         </div>
     </div>
@@ -863,6 +1091,281 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
         }
 
+        // PasswordWall / Authentication Flow
+        let pendingAction = null;
+        
+        function getSavedPassword() {
+            return localStorage.getItem("portal_password") || "";
+        }
+        
+        function setSavedPassword(pw, remember) {
+            if (remember) {
+                localStorage.setItem("portal_password", pw);
+            } else {
+                localStorage.removeItem("portal_password");
+            }
+        }
+        
+        function showAuthModal(callback) {
+            pendingAction = callback;
+            document.getElementById("auth-pw-input").value = "";
+            document.getElementById("auth-error-msg").textContent = "";
+            document.getElementById("auth-modal").classList.add("active");
+            document.getElementById("auth-pw-input").focus();
+        }
+        
+        function hideAuthModal() {
+            document.getElementById("auth-modal").classList.remove("active");
+            pendingAction = null;
+        }
+        
+        function submitAuth() {
+            const pw = document.getElementById("auth-pw-input").value;
+            const remember = document.getElementById("auth-remember-cb").checked;
+            
+            fetch("/api/auth", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ password: pw })
+            })
+            .then(res => {
+                if (res.ok) {
+                    setSavedPassword(pw, remember);
+                    const cb = pendingAction;
+                    hideAuthModal();
+                    if (cb) cb(pw);
+                } else {
+                    document.getElementById("auth-error-msg").textContent = "Invalid password. Try again.";
+                }
+            })
+            .catch(err => {
+                document.getElementById("auth-error-msg").textContent = "Connection error: " + err;
+            });
+        }
+        
+        function performProtectedAction(actionFn) {
+            const savedPw = getSavedPassword();
+            if (savedPw) {
+                actionFn(savedPw, (err) => {
+                    if (err && err.status === 401) {
+                        localStorage.removeItem("portal_password");
+                        showAuthModal(actionFn);
+                    }
+                });
+            } else {
+                showAuthModal(actionFn);
+            }
+        }
+
+        // Admin Buttons Triggers
+        function triggerClean() {
+            performProtectedAction((pw, onDone) => {
+                fetch("/api/clean", {
+                    method: "POST",
+                    headers: { "X-Portal-Password": pw }
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    if (res.ok) {
+                        alert("Clean completed!");
+                    } else {
+                        alert("Clean failed!");
+                    }
+                    onDone();
+                })
+                .catch(err => { alert("Clean failed: " + err); onDone(); });
+            });
+        }
+
+        function triggerFclean() {
+            const killTars = document.getElementById("fclean-kill-tars-cb").checked;
+            performProtectedAction((pw, onDone) => {
+                fetch("/api/fclean", {
+                    method: "POST",
+                    headers: { 
+                        "X-Portal-Password": pw,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ kill_tars: killTars })
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    if (res.ok) {
+                        alert("Full clean (FClean) completed!");
+                    } else {
+                        alert("FClean failed!");
+                    }
+                    onDone();
+                })
+                .catch(err => { alert("FClean failed: " + err); onDone(); });
+            });
+        }
+
+        function triggerRebuild() {
+            performProtectedAction((pw, onDone) => {
+                fetch("/api/rebuild", {
+                    method: "POST",
+                    headers: { "X-Portal-Password": pw }
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    if (res.ok) {
+                        // Success: State will update dynamically via SSE
+                    } else {
+                        res.json().then(d => alert("Rebuild failed: " + (d.error || "unknown")));
+                    }
+                    onDone();
+                })
+                .catch(err => { alert("Rebuild failed: " + err); onDone(); });
+            });
+        }
+
+        function triggerDownload(e) {
+            e.preventDefault();
+            performProtectedAction((pw, onDone) => {
+                const link = document.getElementById("download-btn-link");
+                link.href = `/api/download?password=${encodeURIComponent(pw)}`;
+                const a = document.createElement("a");
+                a.href = link.href;
+                a.download = "pronzeos.img";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                onDone();
+            });
+        }
+
+        // QEMU Console guest controls
+        function triggerQemuStart() {
+            performProtectedAction((pw, onDone) => {
+                const startBtn = document.getElementById("qemu-start-btn");
+                startBtn.disabled = true;
+                startBtn.textContent = "LAUNCHING...";
+                
+                fetch("/api/qemu/start", {
+                    method: "POST",
+                    headers: { "X-Portal-Password": pw }
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    res.json().then(data => {
+                        if (!res.ok) {
+                            alert("Failed to start QEMU: " + data.message);
+                            startBtn.disabled = false;
+                            startBtn.textContent = "START QEMU";
+                        }
+                    });
+                    onDone();
+                })
+                .catch(err => {
+                    alert("Error starting QEMU: " + err);
+                    startBtn.disabled = false;
+                    startBtn.textContent = "START QEMU";
+                    onDone();
+                });
+            });
+        }
+
+        function triggerQemuStop() {
+            performProtectedAction((pw, onDone) => {
+                fetch("/api/qemu/stop", {
+                    method: "POST",
+                    headers: { "X-Portal-Password": pw }
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    if (!res.ok) {
+                        res.json().then(data => alert("Failed to stop QEMU: " + data.message));
+                    }
+                    onDone();
+                })
+                .catch(err => {
+                    alert("Error stopping QEMU: " + err);
+                    onDone();
+                });
+            });
+        }
+
+        function sendQemuInput(e) {
+            if (e.key === "Enter") {
+                const inputField = document.getElementById("qemu-input-field");
+                const val = inputField.value + "\\n";
+                inputField.value = "";
+                
+                const pw = getSavedPassword();
+                if (!pw) {
+                    alert("Not authenticated. Please click Start QEMU to authenticate.");
+                    return;
+                }
+                
+                fetch("/api/qemu/input", {
+                    method: "POST",
+                    headers: { 
+                        "X-Portal-Password": pw,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ input: val })
+                })
+                .catch(err => {
+                    console.error("Error sending input: " + err);
+                });
+            }
+        }
+
+        // QEMU Log viewer parser
+        function parseLogLine(text) {
+            let escaped = text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;");
+
+            const timestampRegex = /^(\s*\[\s*\d+\.\d+\s*\])(.*)$/;
+            const checkRegex = /^(\s*\[\s*✔\s*\])(.*)$/;
+            const crossRegex = /^(\s*\[\s*x\s*\])(.*)$/;
+            const warnRegex = /^(\s*\[\s*!\s*\])(.*)$/;
+            const infoRegex = /^(\s*\[\s*i\s*\])(.*)$/;
+            const stepRegex = /^(\s*\[\s*(\+|•)\s*\])(.*)$/;
+
+            if (timestampRegex.test(escaped)) {
+                return escaped.replace(timestampRegex, '<span class="term-tstamp">$1</span>$2');
+            } else if (checkRegex.test(escaped)) {
+                return escaped.replace(checkRegex, '<span class="term-check">$1</span><span class="term-check-text">$2</span>');
+            } else if (crossRegex.test(escaped)) {
+                return escaped.replace(crossRegex, '<span class="term-error">$1</span><span class="term-error-text">$2</span>');
+            } else if (warnRegex.test(escaped)) {
+                return escaped.replace(warnRegex, '<span class="term-warn">$1</span><span class="term-warn-text">$2</span>');
+            } else if (infoRegex.test(escaped)) {
+                return escaped.replace(infoRegex, '<span class="term-info">$1</span>$2');
+            } else if (stepRegex.test(escaped)) {
+                return escaped.replace(stepRegex, '<span class="term-step">$1</span>$2');
+            }
+            return escaped;
+        }
+
+        let accumulatedQemuLogs = "";
+        
+        function appendToTerminal(text) {
+            const term = document.getElementById("qemu-log-terminal");
+            accumulatedQemuLogs += text;
+            
+            if (accumulatedQemuLogs.length > 100000) {
+                accumulatedQemuLogs = accumulatedQemuLogs.substring(accumulatedQemuLogs.length - 50000);
+            }
+            
+            const lines = accumulatedQemuLogs.split("\\n");
+            let html = "";
+            lines.forEach((line, idx) => {
+                if (idx === lines.length - 1) {
+                    html += parseLogLine(line);
+                } else {
+                    html += parseLogLine(line) + "\\n";
+                }
+            });
+            term.innerHTML = html;
+            term.scrollTop = term.scrollHeight;
+        }
+
+        // SSE Connection
         const evtSource = new EventSource("/events");
         
         evtSource.addEventListener("state", (e) => {
@@ -883,16 +1386,29 @@ HTML_CONTENT = """<!DOCTYPE html>
                 }
             }
             
-            if (payload.build_start_time) {
+            if (payload.build_start_time && payload.build_active) {
                 startTimer(payload.build_start_time, payload.server_current_time);
                 updateGlobalStatus("BUILDING", "building");
-            } else if (activeCount > 0 && !buildRunning) {
-                // Fallback
-                serverStartTime = Date.now() / 1000;
-                clientServerOffset = 0;
-                buildRunning = true;
-                timerInterval = setInterval(updateTimerDisplay, 1000);
-                updateGlobalStatus("BUILDING", "building");
+            } else if (payload.build_completed) {
+                stopTimer();
+                updateGlobalStatus(payload.final_status_text ? payload.final_status_text.toUpperCase() : "COMPLETE", payload.final_status_text && payload.final_status_text.toLowerCase() === "failed" ? "failed" : "success");
+            } else {
+                updateGlobalStatus("IDLE", "idle");
+            }
+
+            // Sync QEMU UI state
+            if (payload.qemu_active) {
+                document.getElementById("qemu-status-text").textContent = "RUNNING";
+                document.getElementById("qemu-status-text").style.color = "#37b24d";
+                document.getElementById("qemu-start-btn").disabled = true;
+                document.getElementById("qemu-stop-btn").disabled = false;
+                document.getElementById("qemu-input-container").style.display = "flex";
+            } else {
+                document.getElementById("qemu-status-text").textContent = "STOPPED";
+                document.getElementById("qemu-status-text").style.color = "#adb5bd";
+                document.getElementById("qemu-start-btn").disabled = false;
+                document.getElementById("qemu-stop-btn").disabled = true;
+                document.getElementById("qemu-input-container").style.display = "none";
             }
             
             updateBuildProgress(successCount, totalCount);
@@ -905,17 +1421,11 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (data.status === "Running") {
                 if (data.build_start_time) {
                     startTimer(data.build_start_time, data.server_current_time);
-                } else if (!buildRunning) {
-                    serverStartTime = Date.now() / 1000;
-                    clientServerOffset = 0;
-                    buildRunning = true;
-                    timerInterval = setInterval(updateTimerDisplay, 1000);
                 }
                 updateGlobalStatus("BUILDING", "building");
                 selectStage(data.name);
             }
             
-            // Recalculate progress
             let cards = document.querySelectorAll(".node-card");
             let successCount = 0;
             cards.forEach(card => {
@@ -926,6 +1436,38 @@ HTML_CONTENT = """<!DOCTYPE html>
             updateBuildProgress(successCount, cards.length);
         });
 
+        evtSource.addEventListener("qemu_started", (e) => {
+            document.getElementById("qemu-status-text").textContent = "RUNNING";
+            document.getElementById("qemu-status-text").style.color = "#37b24d";
+            document.getElementById("qemu-start-btn").disabled = true;
+            document.getElementById("qemu-start-btn").textContent = "START QEMU";
+            document.getElementById("qemu-stop-btn").disabled = false;
+            document.getElementById("qemu-input-container").style.display = "flex";
+            document.getElementById("qemu-log-terminal").innerHTML = '<div style="color: #37b24d; font-weight: bold;">[+] Connecting to serial console...</div>';
+            document.getElementById("qemu-input-field").focus();
+        });
+
+        evtSource.addEventListener("qemu_stopped", (e) => {
+            document.getElementById("qemu-status-text").textContent = "STOPPED";
+            document.getElementById("qemu-status-text").style.color = "#adb5bd";
+            document.getElementById("qemu-start-btn").disabled = false;
+            document.getElementById("qemu-stop-btn").disabled = true;
+            document.getElementById("qemu-input-container").style.display = "none";
+        });
+
+        evtSource.addEventListener("qemu_log", (e) => {
+            const char = JSON.parse(e.data);
+            appendToTerminal(char);
+        });
+
+        evtSource.addEventListener("qemu_initial_logs", (e) => {
+            const logs = JSON.parse(e.data);
+            if (logs) {
+                accumulatedQemuLogs = "";
+                appendToTerminal(logs);
+            }
+        });
+ 
         evtSource.addEventListener("analyzer_report", (e) => {
             const data = JSON.parse(e.data);
             document.getElementById("analyzer-total-files").textContent = data.total_files;
@@ -1009,11 +1551,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
             
             const statusEl = document.getElementById("status-" + name);
-            if (statusEl) statusEl.textContent = status;
+            if (statusEl) {
+                statusEl.textContent = status === "Success" ? "Complete" : status;
+            }
             
             const durEl = document.getElementById("duration-" + name);
             if (durEl) {
-                if (elapsed !== null && elapsed !== undefined) {
+                if (elapsed !== null) {
                     durEl.textContent = elapsed.toFixed(2) + "s";
                 } else if (status === "Skipped") {
                     durEl.textContent = "skipped";
@@ -1038,7 +1582,6 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById("build-progress-bar").style.width = percent + "%";
         }
 
-        // Set default selection
         selectStage("DownloadTarballs");
     </script>
 </body>
@@ -1094,12 +1637,16 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        if self.path == '/':
+        import urllib.parse
+        parsed_url = urllib.parse.urlparse(self.path)
+        path = parsed_url.path
+        
+        if path == '/':
             self.send_response(200)
             self.send_header('Content-Type', 'text/html; charset=utf-8')
             self.end_headers()
             self.wfile.write(HTML_CONTENT.encode('utf-8'))
-        elif self.path == '/events':
+        elif path == '/events':
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
             self.send_header('Cache-Control', 'no-cache')
@@ -1113,11 +1660,16 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
             state_payload = {
                 "nodes": node_states,
                 "build_start_time": build_start_time,
-                "server_current_time": time.time()
+                "server_current_time": time.time(),
+                "build_completed": build_completed,
+                "build_active": build_active,
+                "qemu_active": qemu_process is not None and qemu_process.poll() is None
             }
             initial_state_msg = f"event: state\ndata: {json.dumps(state_payload)}\n\n"
             with log_lock:
                 initial_logs_msg = f"event: initial_logs\ndata: {json.dumps(log_buffers)}\n\n"
+            with qemu_lock:
+                initial_qemu_logs_msg = f"event: qemu_initial_logs\ndata: {json.dumps(qemu_log_buffer)}\n\n"
             hashes_payload = {
                 "changes": detected_changes,
                 "current_hashes": current_hashes_prefix
@@ -1125,11 +1677,31 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
             initial_hashes_msg = f"event: hashes_report\ndata: {json.dumps(hashes_payload)}\n\n"
             analyzer_msg = f"event: analyzer_report\ndata: {json.dumps(compilation_analyzer_data)}\n\n"
             
+            # If the build has already completed, send a total_report immediately upon connection
+            total_report_msg = ""
+            if build_completed:
+                rows = []
+                for node_name in node_states:
+                    state = node_states.get(node_name, {})
+                    elapsed = state.get("elapsed")
+                    elapsed_str = f"{elapsed:.2f}s" if elapsed is not None else ("skipped" if state.get("status") == "Skipped" else "0.00s")
+                    rows.append({"name": node_name, "status": state.get("status"), "elapsed": elapsed_str})
+                
+                payload = {
+                    "total_time": f"{total_build_time:.2f}s",
+                    "status": final_status_text,
+                    "report_table": rows
+                }
+                total_report_msg = f"event: total_report\ndata: {json.dumps(payload)}\n\n"
+
             try:
                 self.wfile.write(initial_state_msg.encode('utf-8'))
                 self.wfile.write(initial_logs_msg.encode('utf-8'))
+                self.wfile.write(initial_qemu_logs_msg.encode('utf-8'))
                 self.wfile.write(initial_hashes_msg.encode('utf-8'))
                 self.wfile.write(analyzer_msg.encode('utf-8'))
+                if total_report_msg:
+                    self.wfile.write(total_report_msg.encode('utf-8'))
                 self.wfile.flush()
             except Exception:
                 if q in clients:
@@ -1151,6 +1723,178 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
                     break
             if q in clients:
                 clients.remove(q)
+                
+        elif path == '/api/download':
+            query_params = urllib.parse.parse_qs(parsed_url.query)
+            pw_param = query_params.get('password', [None])[0]
+            password_header = self.headers.get("X-Portal-Password")
+            
+            if pw_param != PORTAL_PASSWORD and password_header != PORTAL_PASSWORD:
+                self.send_response(401)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write("Unauthorized".encode('utf-8'))
+                return
+                
+            global global_context
+            if not global_context:
+                self.send_error(500, "Context not initialized")
+                return
+                
+            img_path = os.path.join(global_context.workspace_dir, "output", "pronzeos.img")
+            if not os.path.exists(img_path):
+                self.send_response(404)
+                self.send_header("Content-Type", "text/plain")
+                self.end_headers()
+                self.wfile.write("File not found. Please build the pipeline first!".encode('utf-8'))
+                return
+                
+            try:
+                file_size = os.path.getsize(img_path)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/octet-stream")
+                self.send_header("Content-Disposition", "attachment; filename=pronzeos.img")
+                self.send_header("Content-Length", str(file_size))
+                self.end_headers()
+                
+                with open(img_path, 'rb') as f:
+                    shutil.copyfileobj(f, self.wfile, length=64*1024)
+            except Exception as e:
+                Logger.log_error(f"Error streaming file: {e}")
+        else:
+            self.send_error(404)
+
+    def do_POST(self):
+        global global_context, global_pipeline, qemu_process
+        # 1. Authenticate with header
+        password_header = self.headers.get("X-Portal-Password")
+        
+        # Support authenticating via POST /api/auth
+        if self.path == '/api/auth':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                pw = data.get("password")
+                if pw == PORTAL_PASSWORD:
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+                    return
+            except Exception:
+                pass
+            
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Invalid password"}).encode('utf-8'))
+            return
+            
+        # For other endpoints, authenticate with header
+        if password_header != PORTAL_PASSWORD:
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Unauthorized"}).encode('utf-8'))
+            return
+            
+        # Handle endpoints
+        if self.path == '/api/clean':
+            if global_context:
+                Logger.log_info("Clean workspace requested from web view")
+                subprocess.run(os.path.join(global_context.workspace_dir, "scripts", "clean.sh"), shell=True)
+                analyze_compilation_files(global_context)
+                generate_diff_report(global_context)
+                broadcast_status(global_context)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            else:
+                self.send_error(500, "Context not initialized")
+                
+        elif self.path == '/api/fclean':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            kill_tars = False
+            try:
+                data = json.loads(body)
+                kill_tars = data.get("kill_tars", False)
+            except Exception:
+                pass
+                
+            if global_context:
+                Logger.log_info(f"FClean workspace requested from web view (kill_tars: {kill_tars})")
+                cmd = os.path.join(global_context.workspace_dir, "scripts", "fclean.sh")
+                if kill_tars:
+                    cmd += " -k"
+                subprocess.run(cmd, shell=True)
+                analyze_compilation_files(global_context)
+                generate_diff_report(global_context)
+                broadcast_status(global_context)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            else:
+                self.send_error(500, "Context not initialized")
+                
+        elif self.path == '/api/rebuild':
+            if global_context and global_pipeline:
+                if build_active:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Build already active"}).encode('utf-8'))
+                    return
+                Logger.log_info("Rebuild pipeline requested from web view")
+                # Trigger rebuild
+                build_queue.put((global_context, global_pipeline))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            else:
+                self.send_error(500, "Context/Pipeline not initialized")
+                
+        elif self.path == '/api/qemu/start':
+            if global_context:
+                success, msg = start_qemu_guest(global_context.workspace_dir)
+                self.send_response(200 if success else 400)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok" if success else "error", "message": msg}).encode('utf-8'))
+            else:
+                self.send_error(500, "Context not initialized")
+                
+        elif self.path == '/api/qemu/stop':
+            success, msg = stop_qemu_guest()
+            self.send_response(200 if success else 400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "ok" if success else "error", "message": msg}).encode('utf-8'))
+            
+        elif self.path == '/api/qemu/input':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                inp = data.get("input", "")
+                if qemu_process and qemu_process.poll() is None:
+                    qemu_process.stdin.write(inp)
+                    qemu_process.stdin.flush()
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+                    return
+            except Exception as e:
+                Logger.log_error(f"Error sending keypress to QEMU: {e}")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "QEMU not running or invalid input"}).encode('utf-8'))
         else:
             self.send_error(404)
 
@@ -1161,6 +1905,232 @@ def start_http_server(port=8000):
     t = threading.Thread(target=server.serve_forever, daemon=True)
     t.start()
     Logger.log_info(f"HTML GUI visualization server started on http://localhost:{port}")
+
+def load_portal_password(workspace_dir):
+    global PORTAL_PASSWORD
+    env_path = os.path.join(workspace_dir, ".env")
+    default_pw = "root"
+    if not os.path.exists(env_path):
+        try:
+            with open(env_path, "w") as f:
+                f.write("# PronzeOS Portal Authentication Settings\n")
+                f.write(f"PORTAL_PASSWORD={default_pw}\n")
+            Logger.log_warn("Generated default .env file with PORTAL_PASSWORD=root. Please change the password in .env to secure your public interface!")
+            PORTAL_PASSWORD = default_pw
+            return
+        except Exception as e:
+            Logger.log_warn(f"Failed to generate .env file: {e}")
+            PORTAL_PASSWORD = default_pw
+            return
+    
+    # Read existing .env
+    password = default_pw
+    try:
+        with open(env_path, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    k, v = line.split("=", 1)
+                    if k.strip() == "PORTAL_PASSWORD":
+                        password = v.strip().strip('"').strip("'")
+                        break
+    except Exception as e:
+        Logger.log_warn(f"Failed to read .env file: {e}")
+    
+    if password == default_pw:
+        Logger.log_warn("PORTAL_PASSWORD is set to default 'root' in .env. Please change the password to secure your public interface!")
+    
+    PORTAL_PASSWORD = password
+
+def broadcast_status(context):
+    if no_view_flag:
+        return
+    
+    # 1. State
+    state_payload = {
+        "nodes": node_states,
+        "build_start_time": build_start_time,
+        "server_current_time": time.time(),
+        "build_completed": build_completed,
+        "build_active": build_active,
+        "qemu_active": qemu_process is not None and qemu_process.poll() is None
+    }
+    state_msg = f"event: state\ndata: {json.dumps(state_payload)}\n\n"
+    
+    # 2. Hashes
+    hashes_payload = {
+        "changes": detected_changes,
+        "current_hashes": current_hashes_prefix
+    }
+    hashes_msg = f"event: hashes_report\ndata: {json.dumps(hashes_payload)}\n\n"
+    
+    # 3. Analyzer
+    analyzer_msg = f"event: analyzer_report\ndata: {json.dumps(compilation_analyzer_data)}\n\n"
+    
+    for q in list(clients):
+        try:
+            q.put(state_msg)
+            q.put(hashes_msg)
+            q.put(analyzer_msg)
+        except Exception:
+            pass
+
+def find_ovmf_firmware():
+    paths = [
+        "/usr/share/OVMF/OVMF_CODE.fd",
+        "/usr/share/ovmf/OVMF.fd",
+        "/usr/share/qemu/OVMF.fd",
+        "/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+        "/opt/homebrew/share/qemu/OVMF.fd",
+    ]
+    for p in paths:
+        if os.path.isfile(p):
+            return p
+    # Search fallback
+    for root_dir in ["/usr/share/OVMF", "/usr/share/ovmf", "/usr/share/qemu", "/opt/homebrew/share/qemu"]:
+        if os.path.isdir(root_dir):
+            for root, dirs, files in os.walk(root_dir):
+                for f in files:
+                    if f in ["edk2-x86_64-code.fd", "OVMF.fd", "OVMF_CODE.fd"]:
+                        return os.path.join(root, f)
+    return None
+
+def qemu_reader():
+    global qemu_process, qemu_log_buffer
+    while True:
+        proc = qemu_process
+        if not proc or proc.poll() is not None:
+            break
+        try:
+            char = proc.stdout.read(1)
+            if not char:
+                break
+            with qemu_lock:
+                qemu_log_buffer += char
+                if len(qemu_log_buffer) > 200000:
+                    qemu_log_buffer = qemu_log_buffer[-100000:]
+            msg = f"event: qemu_log\ndata: {json.dumps(char)}\n\n"
+            for q in list(clients):
+                try:
+                    q.put(msg)
+                except Exception:
+                    pass
+        except Exception:
+            break
+    
+    # Notify clients QEMU stopped
+    stop_msg = f"event: qemu_stopped\ndata: {{}}\n\n"
+    for q in list(clients):
+        try:
+            q.put(stop_msg)
+        except Exception:
+            pass
+
+def start_qemu_guest(workspace_dir):
+    global qemu_process, qemu_log_buffer, qemu_reader_thread
+    if qemu_process and qemu_process.poll() is None:
+        return True, "QEMU is already running."
+    
+    img_path = os.path.join(workspace_dir, "output", "pronzeos.img")
+    if not os.path.exists(img_path):
+        return False, f"Disk image not found at {img_path}. Please build first!"
+        
+    ovmf_path = find_ovmf_firmware()
+    
+    qemu_cmd = [
+        "qemu-system-x86_64",
+        "-m", "1G",
+        "-hda", img_path,
+        "-display", "none",
+        "-serial", "stdio"
+    ]
+    if ovmf_path:
+        qemu_cmd.extend(["-drive", f"if=pflash,format=raw,unit=0,file={ovmf_path},readonly=on"])
+        Logger.log_info(f"Using UEFI firmware: {ovmf_path}")
+    else:
+        Logger.log_warn("No UEFI firmware found. systemd-boot inside guest might fail.")
+
+    try:
+        qemu_log_buffer = ""
+        qemu_process = subprocess.Popen(
+            qemu_cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        
+        qemu_reader_thread = threading.Thread(target=qemu_reader, daemon=True)
+        qemu_reader_thread.start()
+        
+        msg = f"event: qemu_started\ndata: {{}}\n\n"
+        for q in list(clients):
+            try:
+                q.put(msg)
+            except Exception:
+                pass
+                
+        return True, "QEMU started successfully."
+    except Exception as e:
+        return False, f"Failed to start QEMU: {e}"
+
+def stop_qemu_guest():
+    global qemu_process
+    if not qemu_process or qemu_process.poll() is not None:
+        return False, "QEMU is not running."
+    
+    try:
+        qemu_process.terminate()
+        try:
+            qemu_process.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            qemu_process.kill()
+        qemu_process = None
+        return True, "QEMU stopped successfully."
+    except Exception as e:
+        qemu_process = None
+        return False, f"Error stopping QEMU: {e}"
+
+def build_worker():
+    global build_active, build_completed, total_build_time, final_status_text, build_start_time
+    while True:
+        task = build_queue.get()
+        if task is None:
+            build_queue.task_done()
+            break
+        
+        context, pipeline = task
+        build_active = True
+        try:
+            # Reset build state
+            build_completed = False
+            total_build_time = 0.0
+            final_status_text = ""
+            build_start_time = time.time()
+            
+            # Reset node states in the UI
+            for node in pipeline.execution_order:
+                node_states[node.name] = {"status": "Pending", "details": "Waiting in queue...", "elapsed": None}
+                with log_lock:
+                    log_buffers[node.name] = ""
+            
+            # Trigger initial broadcast
+            broadcast_status(context)
+            
+            # Run the build
+            pipeline.execute(context)
+            
+        except Exception as e:
+            Logger.log_error(f"Error in background build: {e}")
+        finally:
+            build_active = False
+            broadcast_status(context)
+            build_queue.task_done()
+
+# Start background build worker thread
+build_thread = threading.Thread(target=build_worker, daemon=True)
+build_thread.start()
 
 # -----------------------------------------------------------------------------
 # 4. Pipeline Infrastructure (DAG Context, Nodes, and Graph Exec)
@@ -1230,6 +2200,10 @@ class PipelineContext:
             except Exception:
                 pass
 
+        global global_context
+        global_context = self
+        load_portal_password(self.workspace_dir)
+
         self.config = self._load_config()
 
     def _load_config(self):
@@ -1284,11 +2258,13 @@ class Pipeline:
             visit(node_name)
 
     def execute(self, context):
-        global current_stage_name, build_start_time
+        global current_stage_name, build_start_time, global_pipeline, build_completed, total_build_time, final_status_text
+        global_pipeline = self
         overall_start_t = time.time()
         build_start_time = overall_start_t
         context.overall_start_t = overall_start_t
         context.pipeline = self
+        context.skip_remaining = False
         
         for node in self.execution_order:
             if getattr(context, 'skip_remaining', False):
@@ -1310,7 +2286,12 @@ class Pipeline:
                 elapsed_t = time.time() - start_t
                 update_node_status(node.name, "Failed", f"Error ({elapsed_t:.2f}s)", elapsed=elapsed_t)
                 Logger.log_error(f"Failed executing {node.name}: {e}")
-                sys.exit(1)
+                
+                total_build_time = time.time() - overall_start_t
+                final_status_text = "Failed"
+                build_completed = True
+                send_total_report(total_build_time, "Failed")
+                return
 
         total_time = time.time() - overall_start_t
         Logger.log_section("          Build Completion Report          ")
@@ -1321,6 +2302,20 @@ class Pipeline:
             Logger.log_plain(f"  - {node.name:<25}: {state.get('status'):<10} ({duration_str})")
         Logger.log_plain(f"\n  [✔] Total Build Duration: {total_time:.2f}s")
         Logger.log_section("")
+
+        total_build_time = total_time
+        final_status_text = "Complete"
+        build_completed = True
+
+        # Save all current hashes to hashes.json
+        hashes_file = os.path.join(context.nochanges_dir, "hashes.json")
+        try:
+            current_hashes = compute_all_hashes(context)
+            with open(hashes_file, 'w', encoding='utf-8') as f:
+                json.dump(current_hashes, f, indent=2)
+            Logger.log_info("Saved current workspace hashes to hashes.json")
+        except Exception as e:
+            Logger.log_warn(f"Failed to save hashes to hashes.json: {e}")
 
         send_total_report(total_time, "Complete")
 

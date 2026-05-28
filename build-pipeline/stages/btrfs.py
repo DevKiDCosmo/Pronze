@@ -8,7 +8,7 @@ from common import PipelineNode, PipelineContext, run_cmd
 
 class PackageBtrfsImageStage(PipelineNode):
     def __init__(self) -> None:
-        super().__init__("PackageBtrfsImage", ["AssembleRootfs"])
+        super().__init__("PackageBtrfsImage", ["CopyConfigurationSetup"])
 
     @override
     def run(self, context: PipelineContext) -> None:

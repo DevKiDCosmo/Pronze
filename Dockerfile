@@ -30,6 +30,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     systemd-boot \
     wget \
     xz-utils \
+    qemu-system-x86 \
+    ovmf \
   && rm -rf /var/lib/apt/lists/*
 
 # Install Rust toolchain (stable) and add musl target

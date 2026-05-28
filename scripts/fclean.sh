@@ -27,18 +27,17 @@ if [ -f "$SCRIPT_DIR/clean.sh" ]; then
 fi
 
 # 3. Clean cache folders
-echo "[+] Removing local cache directories (.builthash, .output-nochanges)..."
-rm -rf "$WORKSPACE_DIR"/.builthash
+echo "[+] Removing local cache directory (.output-nochanges)..."
 rm -rf "$WORKSPACE_DIR"/.output-nochanges
+rm -rf "$WORKSPACE_DIR"/.builthash 2>/dev/null || true
 
 # 4. Clean root-level container caches if writable
-if [ -d "/.builthash" ]; then
-    echo "[+] Removing root-level container builthash cache..."
-    rm -rf "/.builthash"
-fi
 if [ -d "/.output-nochanges" ]; then
     echo "[+] Removing root-level container output cache..."
     rm -rf "/.output-nochanges"
+fi
+if [ -d "/.builthash" ]; then
+    rm -rf "/.builthash" 2>/dev/null || true
 fi
 
 # 5. Clean persistent cache directories
@@ -46,13 +45,28 @@ for opt_path in "/opt/pronze" "/opt/pronzeos" "/opt/pronkern"; do
     if [ -d "$opt_path" ]; then
         if [ "$REMOVE_TARS" = "true" ]; then
             echo "[+] Cleaning ALL files and tarballs in persistent cache directory $opt_path..."
-            rm -rf "$opt_path"/*
+            find "$opt_path" -mindepth 1 -delete 2>/dev/null || rm -rf "$opt_path"/*
         else
             echo "[+] Cleaning extracted sources in persistent cache directory $opt_path (preserving downloads & cached tarballs)..."
             rm -rf "$opt_path"/src
         fi
     fi
 done
+
+# 6. If running on host (not in Docker) and docker command exists, clean Docker persistent cache volumes
+if [ ! -f /.dockerenv ] && command -v docker &>/dev/null; then
+    if [ "$REMOVE_TARS" = "true" ]; then
+        echo "[+] Detected host environment. Purging Docker cache volumes..."
+        docker run --rm -v pronkern-cache:/opt/pronkern ubuntu:24.04 find /opt/pronkern -mindepth 1 -delete 2>/dev/null || true
+        docker run --rm -v pronze-cache:/opt/pronze ubuntu:24.04 find /opt/pronze -mindepth 1 -delete 2>/dev/null || true
+        docker volume rm pronkern-cache 2>/dev/null || true
+        docker volume rm pronze-cache 2>/dev/null || true
+    else
+        echo "[+] Detected host environment. Cleaning extracted sources inside Docker cache volumes..."
+        docker run --rm -v pronkern-cache:/opt/pronkern ubuntu:24.04 rm -rf /opt/pronkern/src 2>/dev/null || true
+        docker run --rm -v pronze-cache:/opt/pronze ubuntu:24.04 rm -rf /opt/pronze/src 2>/dev/null || true
+    fi
+fi
 
 echo "=========================================================="
 echo "          FCLEAN Completed Successfully!                  "

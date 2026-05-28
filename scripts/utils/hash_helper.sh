@@ -70,14 +70,21 @@ get_file_hash() {
 # Resolves directory configuration for caching
 setup_cache_dirs() {
     local base_dir=$1
-    BUILTHASH_DIR="$base_dir/.builthash"
     NOCHANGES_DIR="$base_dir/.output-nochanges"
-    mkdir -p "$BUILTHASH_DIR" "$NOCHANGES_DIR"
+    mkdir -p "$NOCHANGES_DIR"
 
     # Create root-level symlinks inside the container for compatibility if root is writable
-    if mkdir -p "/.builthash" 2>/dev/null && mkdir -p "/.output-nochanges" 2>/dev/null; then
-        rm -rf "/.builthash" "/.output-nochanges"
-        ln -sf "$BUILTHASH_DIR" "/.builthash"
+    if mkdir -p "/.output-nochanges" 2>/dev/null; then
+        rm -rf "/.output-nochanges"
         ln -sf "$NOCHANGES_DIR" "/.output-nochanges"
+    fi
+
+    # Migrate any legacy files from .builthash to .output-nochanges
+    if [ -d "$base_dir/.builthash" ]; then
+        cp -af "$base_dir/.builthash"/* "$NOCHANGES_DIR/" 2>/dev/null || true
+        rm -rf "$base_dir/.builthash"
+    fi
+    if [ -L "/.builthash" ] || [ -d "/.builthash" ]; then
+        rm -rf "/.builthash"
     fi
 }

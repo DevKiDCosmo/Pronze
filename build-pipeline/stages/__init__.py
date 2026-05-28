@@ -12,3 +12,4 @@ from .btrfs import PackageBtrfsImageStage
 from .esp import PackageESPImageStage
 from .gpt import AssembleGPTImageStage
 from .ship import ShipImageStage
+from .config_setup import CopyConfigurationSetupStage

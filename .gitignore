@@ -54,3 +54,4 @@ kernel/.tmp_versions/
 .output-nochanges/
 logs/
 __pycache__
+.env

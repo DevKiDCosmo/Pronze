@@ -2,3 +2,4 @@
 linux
 **/.DS_Store
 .output-nochanges
+.env

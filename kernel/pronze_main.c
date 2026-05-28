@@ -22,12 +22,16 @@ MODULE_VERSION("0.1");
 #define PRONZE_IOCTL_START_TRACE   0x1003
 #define PRONZE_IOCTL_RECORD_MALLOC 0x1004
 #define PMF_PAGE_ORDER             10
+#define PRONZE_IO_BUFFER_SIZE       4096
 
 static int fault_rate = 2;
 static int malloc_success_count = 0;
 static int malloc_failure_count = 0;
+static unsigned long long pronze_read_seq;
+static unsigned long long pronze_write_seq;
 
 static char telemetry_buf[512];
+static char pronze_read_buf[PRONZE_IO_BUFFER_SIZE];
 
 static int device_open(struct inode *inode, struct file *file) {
     int ret = 0;
@@ -59,6 +63,42 @@ static int device_release(struct inode *inode, struct file *file) {
     page_pr_cleanup();
     pr_info("pronze: Device closed\n");
     return 0;
+}
+
+static ssize_t device_read(struct file *file, char __user *buf, size_t count, loff_t *ppos) {
+    size_t to_copy;
+    int len;
+
+    to_copy = count < sizeof(pronze_read_buf) ? count : sizeof(pronze_read_buf);
+    if (to_copy == 0) {
+        return 0;
+    }
+
+    len = snprintf(pronze_read_buf, sizeof(pronze_read_buf),
+        "PRONZE-BLOCK seq=%llu requested=%zu fault_rate=%d malloc_ok=%d malloc_fail=%d\n",
+        ++pronze_read_seq, count, fault_rate, malloc_success_count, malloc_failure_count);
+
+    if (len < 0) {
+        return -EFAULT;
+    }
+
+    if ((size_t)len < to_copy) {
+        memset(pronze_read_buf + len, '.', to_copy - len);
+    }
+
+    if (copy_to_user(buf, pronze_read_buf, to_copy)) {
+        return -EFAULT;
+    }
+
+    *ppos += to_copy;
+    pr_info("pronze: read block #%llu delivered %zu bytes\n", pronze_read_seq, to_copy);
+    return to_copy;
+}
+
+static ssize_t device_write(struct file *file, const char __user *buf, size_t count, loff_t *ppos) {
+    pr_info("pronze: write block #%llu received %zu bytes\n", ++pronze_write_seq, count);
+    *ppos += count;
+    return count;
 }
 
 static long device_ioctl(struct file *file, unsigned int cmd, unsigned long arg) {
@@ -116,6 +156,8 @@ static ssize_t telemetrics_read(struct file *file, char __user *buf, size_t coun
 static struct file_operations pronze_fops = {
     .owner = THIS_MODULE,
     .open = device_open,
+    .read = device_read,
+    .write = device_write,
     .release = device_release,
     .unlocked_ioctl = device_ioctl,
 };
