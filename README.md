@@ -143,7 +143,7 @@ docker build -t pronzeos:latest .
 # Run the test suite
 docker run --rm pronzeos:latest
 
-docker run --rm -v "$(pwd):/workspace" -v pronze-cache:/opt/pronze pronzeos:latest
+docker run --rm -p 8000:8000 -v "$(pwd):/workspace" -v pronze-cache:/opt/pronze pronzeos:latest # --no-logs-terminal
 ```
 
 ### Dev Container for Linux Kernel Module Development

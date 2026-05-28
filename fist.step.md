@@ -19,3 +19,14 @@ Later capturing also all inputs inside application and for reproductibility add 
 No multi thread compiling because it takes already all cores.
 
 fclean.sh -k removes also tarballs. Why k just... I have no reason.
+
+All Kernel Drivers
+
+pronze_mft Pronze Memeory Fault System
+pronze_mtr Pronze Memory Trust System
+pronze_fss Pronze FS Supervisor
+pronze_int Pronze Interupt and Input Handler
+pronze_ffi Foreign Function Interface
+pronze_sli Shared Library Interface
+
+There are some ABI etc.

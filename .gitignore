@@ -52,4 +52,5 @@ kernel/.tmp_versions/
 .clangd
 
 .output-nochanges/
-.builthash/
+logs/
+__pycache__
