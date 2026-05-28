@@ -4,7 +4,7 @@
 #include <linux/fs.h>
 #include <linux/uaccess.h>
 
-#include "_page_pr.h"
+#include "pager/_page_pr.h"
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("PronzeOS Team");

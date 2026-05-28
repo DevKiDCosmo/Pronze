@@ -15,3 +15,7 @@ Features
 ? Own toolchain. Own integration of GCC etc. to create application .pron
 
 Later capturing also all inputs inside application and for reproductibility add something like Framework::WaitForNextInput. Framework::ContinueWithNextClick. This let's input be indepently execute from loading. So no time constraint. Those also say when capturing is possible. It needs to be init with Framework::InitDriverInput(&registrar, &uid, &pid);
+
+No multi thread compiling because it takes already all cores.
+
+fclean.sh -k removes also tarballs. Why k just... I have no reason.

@@ -54,5 +54,8 @@ COPY . /workspace
 # Ensure scripts are executable
 RUN chmod +x /workspace/scripts/*.sh
 
+# Expose port 8000 for the pipeline live status visualization web interface
+EXPOSE 8000
+
 # Run the entrypoint routing script by default
 ENTRYPOINT ["/bin/bash", "/workspace/scripts/entrypoint.sh"]
