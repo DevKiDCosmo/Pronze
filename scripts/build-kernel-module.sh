@@ -28,7 +28,11 @@ HEADERS_VERSION="${LINUX_HEADERS_VERSION:-$LINUX_VERSION}"
 log_info "Target Kernel Headers Version: $HEADERS_VERSION"
 
 # Configure directories
-OPT_DIR="${PRONZE_DIR:-/opt/pronze}"
+if [ -d "/opt/pronkern" ]; then
+    OPT_DIR="${PRONZE_DIR:-/opt/pronkern}"
+else
+    OPT_DIR="${PRONZE_DIR:-/opt/pronze}"
+fi
 DOWNLOAD_DIR="$OPT_DIR/downloads"
 SRC_DIR="$OPT_DIR/src"
 OUTPUT_DIR="$BASE_DIR/output"
@@ -46,8 +50,8 @@ if [ -f "$SAVED_HASH_FILE" ] && [ -f "$CACHED_KO" ]; then
     if [ "$KERNEL_HASH" = "$SAVED_HASH" ]; then
         log_success "Kernel module source unchanged. Copying cached pronze.ko to output..."
         cp -av "$CACHED_KO" "$OUTPUT_DIR/"
-        log_success "Done!"
-        exit 0
+        log_success "Assembling and shipping final PronzeOS distro image..."
+        exec bash "$BASE_DIR/scripts/build-distro.sh"
     fi
 fi
 
@@ -108,6 +112,8 @@ if [ -f "$KO_PATH" ]; then
     cp -av "$KO_PATH" "$CACHED_KO"
     echo "$KERNEL_HASH" > "$SAVED_HASH_FILE"
     log_success "Saved hash and cached pronze.ko"
+    log_success "Assembling and shipping final PronzeOS distro image..."
+    exec bash "$BASE_DIR/scripts/build-distro.sh"
 else
     log_error "Could not find compiled kernel module at $KO_PATH"
     exit 1

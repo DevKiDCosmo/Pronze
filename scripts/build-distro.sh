@@ -20,7 +20,11 @@ source "$SCRIPT_DIR/utils/hash_helper.sh"
 log_section "          PronzeOS Bootable Distro Build Pipeline       " 58
 
 # Configure directories
-OPT_DIR="${PRONZE_DIR:-/opt/pronze}"
+if [ -d "/opt/pronkern" ]; then
+    OPT_DIR="${PRONZE_DIR:-/opt/pronkern}"
+else
+    OPT_DIR="${PRONZE_DIR:-/opt/pronze}"
+fi
 DOWNLOAD_DIR="$OPT_DIR/downloads"
 SRC_DIR="$OPT_DIR/src"
 OUTPUT_DIR="/workspace/output"
@@ -36,6 +40,12 @@ MASTER_HASH=$(echo "$(get_dir_hash /workspace/kernel)-$(get_dir_hash /workspace/
 
 SAVED_MASTER_HASH_FILE="$BUILTHASH_DIR/master.hash"
 CACHED_IMAGE="$NOCHANGES_DIR/pronzeos.img"
+
+# Check if distro is already compiled and present in output
+if [ -f "$SAVED_MASTER_HASH_FILE" ] && [ -f "$OUTPUT_DIR/pronzeos.img" ] && [ "$(cat "$SAVED_MASTER_HASH_FILE")" = "$MASTER_HASH" ]; then
+    log_section "   PronzeOS Distro Build: Already compiled!    " 58
+    exit 0
+fi
 
 # Start build pipeline step-by-step
 echo "  - Linux Kernel:  $LINUX_VERSION"
@@ -84,9 +94,12 @@ extract_tarball "$DOWNLOAD_DIR/s6-$S6_VERSION.tar.gz" "s6-$S6_VERSION" "-xf"
 # 3. Compile s6 and dependencies against musl
 echo -e "\n[+] 3/11 Compiling s6 process supervision suite against musl..."
 
-S6_HASH=$(echo "$SKALIBS_VERSION-$EXECLINE_VERSION-$S6_VERSION")
+SKALIBS_TAR_HASH=$(get_file_hash "$DOWNLOAD_DIR/skalibs-$SKALIBS_VERSION.tar.gz")
+EXECLINE_TAR_HASH=$(get_file_hash "$DOWNLOAD_DIR/execline-$EXECLINE_VERSION.tar.gz")
+S6_TAR_HASH=$(get_file_hash "$DOWNLOAD_DIR/s6-$S6_VERSION.tar.gz")
+S6_HASH=$(echo "$SKALIBS_VERSION-$EXECLINE_VERSION-$S6_VERSION-$SKALIBS_TAR_HASH-$EXECLINE_TAR_HASH-$S6_TAR_HASH" | sha256sum | cut -d' ' -f1)
 SAVED_S6_HASH_FILE="$BUILTHASH_DIR/s6.hash"
-CACHED_S6_TARBALL="/opt/pronze/cache/s6_install.tar.gz"
+CACHED_S6_TARBALL="$OPT_DIR/cache/s6_install.tar.gz"
 
 if [ -f "$SAVED_S6_HASH_FILE" ] && [ -f "$CACHED_S6_TARBALL" ] && [ "$(cat "$SAVED_S6_HASH_FILE")" = "$S6_HASH" ]; then
     log_info "Restoring s6 process supervision suite from cache..."
@@ -119,7 +132,7 @@ else
     make install DESTDIR="/tmp/s6_install"
 
     log_info "Archiving compiled s6 to cache..."
-    mkdir -p /opt/pronze/cache
+    mkdir -p "$OPT_DIR/cache"
     tar -czPf "$CACHED_S6_TARBALL" /tmp/s6_install /usr/include/x86_64-linux-musl /usr/lib/x86_64-linux-musl
     echo "$S6_HASH" > "$SAVED_S6_HASH_FILE"
 fi
@@ -130,9 +143,10 @@ echo "[✔] Done: Static s6 binaries compiled successfully"
 # 4. Configure and Compile static BusyBox using musl-gcc
 echo -e "\n[+] 4/11 Configuring and compiling static BusyBox using musl..."
 
-BUSYBOX_HASH=$(echo "$BUSYBOX_VERSION")
+BUSYBOX_TAR_HASH=$(get_file_hash "$DOWNLOAD_DIR/busybox-$BUSYBOX_VERSION.tar.bz2")
+BUSYBOX_HASH=$(echo "$BUSYBOX_VERSION-$BUSYBOX_TAR_HASH" | sha256sum | cut -d' ' -f1)
 SAVED_BUSYBOX_HASH_FILE="$BUILTHASH_DIR/busybox.hash"
-CACHED_BUSYBOX_TARBALL="/opt/pronze/cache/busybox_install.tar.gz"
+CACHED_BUSYBOX_TARBALL="$OPT_DIR/cache/busybox_install.tar.gz"
 
 if [ -f "$SAVED_BUSYBOX_HASH_FILE" ] && [ -f "$CACHED_BUSYBOX_TARBALL" ] && [ "$(cat "$SAVED_BUSYBOX_HASH_FILE")" = "$BUSYBOX_HASH" ]; then
     log_info "Restoring BusyBox from cache..."
@@ -149,7 +163,7 @@ else
     make CC="musl-gcc -idirafter /usr/include -idirafter /usr/include/x86_64-linux-gnu" install
     
     log_info "Archiving BusyBox to cache..."
-    mkdir -p /opt/pronze/cache
+    mkdir -p "$OPT_DIR/cache"
     tar -czf "$CACHED_BUSYBOX_TARBALL" -C "$SRC_DIR/busybox-$BUSYBOX_VERSION" _install
     echo "$BUSYBOX_HASH" > "$SAVED_BUSYBOX_HASH_FILE"
 fi
@@ -159,9 +173,10 @@ echo "[✔] Done: BusyBox built statically in _install"
 # 5. Build custom Linux Kernel with Btrfs support
 echo -e "\n[+] 5/11 Configuring and compiling custom Linux kernel with Btrfs..."
 
-KERNEL_IMAGE_HASH=$(echo "$LINUX_VERSION")
+KERNEL_TAR_HASH=$(get_file_hash "$DOWNLOAD_DIR/linux-$LINUX_VERSION.tar.xz")
+KERNEL_IMAGE_HASH=$(echo "$LINUX_VERSION-$KERNEL_TAR_HASH" | sha256sum | cut -d' ' -f1)
 SAVED_KERNEL_HASH_FILE="$BUILTHASH_DIR/kernel_image.hash"
-CACHED_BZIMAGE="/opt/pronze/cache/bzImage"
+CACHED_BZIMAGE="$OPT_DIR/cache/bzImage"
 
 if [ -f "$SAVED_KERNEL_HASH_FILE" ] && [ -f "$CACHED_BZIMAGE" ] && [ "$(cat "$SAVED_KERNEL_HASH_FILE")" = "$KERNEL_IMAGE_HASH" ]; then
     log_info "Restoring custom Linux kernel bzImage from cache..."
@@ -193,7 +208,7 @@ else
     make -j"$(nproc)"
     
     log_info "Archiving custom Linux kernel bzImage to cache..."
-    mkdir -p /opt/pronze/cache
+    mkdir -p "$OPT_DIR/cache"
     cp -av "$SRC_DIR/linux-$LINUX_VERSION/arch/x86/boot/bzImage" "$CACHED_BZIMAGE"
     echo "$KERNEL_IMAGE_HASH" > "$SAVED_KERNEL_HASH_FILE"
 fi

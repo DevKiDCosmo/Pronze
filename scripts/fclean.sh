@@ -42,7 +42,7 @@ if [ -d "/.output-nochanges" ]; then
 fi
 
 # 5. Clean persistent cache directories
-for opt_path in "/opt/pronze" "/opt/pronzeos"; do
+for opt_path in "/opt/pronze" "/opt/pronzeos" "/opt/pronkern"; do
     if [ -d "$opt_path" ]; then
         if [ "$REMOVE_TARS" = "true" ]; then
             echo "[+] Cleaning ALL files and tarballs in persistent cache directory $opt_path..."
