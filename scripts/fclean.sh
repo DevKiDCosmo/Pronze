@@ -13,17 +13,25 @@ echo "=========================================================="
 echo "          PronzeOS Full Workspace Cleanup (FCLEAN)        "
 echo "=========================================================="
 
-# 1. Run the standard clean script
+# 1. Parse arguments
+REMOVE_TARS=false
+for arg in "$@"; do
+    if [ "$arg" = "-k" ] || [ "$arg" = "--kill-tars" ]; then
+        REMOVE_TARS=true
+    fi
+done
+
+# 2. Run the standard clean script
 if [ -f "$SCRIPT_DIR/clean.sh" ]; then
     bash "$SCRIPT_DIR/clean.sh"
 fi
 
-# 2. Clean cache folders
+# 3. Clean cache folders
 echo "[+] Removing local cache directories (.builthash, .output-nochanges)..."
 rm -rf "$WORKSPACE_DIR"/.builthash
 rm -rf "$WORKSPACE_DIR"/.output-nochanges
 
-# 3. Clean root-level container caches if writable
+# 4. Clean root-level container caches if writable
 if [ -d "/.builthash" ]; then
     echo "[+] Removing root-level container builthash cache..."
     rm -rf "/.builthash"
@@ -33,11 +41,16 @@ if [ -d "/.output-nochanges" ]; then
     rm -rf "/.output-nochanges"
 fi
 
-# 4. Clean persistent cache directories
+# 5. Clean persistent cache directories
 for opt_path in "/opt/pronze" "/opt/pronzeos"; do
     if [ -d "$opt_path" ]; then
-        echo "[+] Cleaning persistent cache directory $opt_path..."
-        rm -rf "$opt_path"/*
+        if [ "$REMOVE_TARS" = "true" ]; then
+            echo "[+] Cleaning ALL files and tarballs in persistent cache directory $opt_path..."
+            rm -rf "$opt_path"/*
+        else
+            echo "[+] Cleaning extracted sources in persistent cache directory $opt_path (preserving downloads & cached tarballs)..."
+            rm -rf "$opt_path"/src
+        fi
     fi
 done
 

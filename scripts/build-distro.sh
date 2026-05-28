@@ -37,22 +37,7 @@ MASTER_HASH=$(echo "$(get_dir_hash /workspace/kernel)-$(get_dir_hash /workspace/
 SAVED_MASTER_HASH_FILE="$BUILTHASH_DIR/master.hash"
 CACHED_IMAGE="$NOCHANGES_DIR/pronzeos.img"
 
-if [ -f "$SAVED_MASTER_HASH_FILE" ] && [ -f "$CACHED_IMAGE" ] && [ "$(cat "$SAVED_MASTER_HASH_FILE")" = "$MASTER_HASH" ]; then
-    log_section "   PronzeOS Distro Build Skipped: No changes detected!    " 58
-    log_success "Restoring cached image to output..."
-    cp -av "$CACHED_IMAGE" "$OUTPUT_DIR/pronzeos.img"
-    # Also restore the individual output binaries so they are present in output folder!
-    cp -av "$NOCHANGES_DIR/libpronze.so" "$OUTPUT_DIR/"
-    cp -av "$NOCHANGES_DIR/pronzed" "$OUTPUT_DIR/"
-    cp -av "$NOCHANGES_DIR/test_alloc" "$OUTPUT_DIR/"
-    cp -av "$NOCHANGES_DIR/test_bounds" "$OUTPUT_DIR/"
-    cp -av "$NOCHANGES_DIR/test_zig" "$OUTPUT_DIR/"
-    cp -av "$NOCHANGES_DIR/test_rust" "$OUTPUT_DIR/" 2>/dev/null || true
-    cp -av "$NOCHANGES_DIR/pronze.ko" "$OUTPUT_DIR/"
-    log_success "Done!"
-    exit 0
-fi
-
+# Start build pipeline step-by-step
 echo "  - Linux Kernel:  $LINUX_VERSION"
 echo "  - BusyBox:       $BUSYBOX_VERSION"
 echo "  - s6 Init:       $S6_VERSION"
