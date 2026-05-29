@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import os
 import shutil
-from typing import override
+try:
+    from typing import override
+except ImportError:
+    def override(func):
+        return func
 
-from common import PipelineNode, PipelineContext, copy_dir_contents, copy_file_or_symlink
+from common import PipelineNode, PipelineContext, copy_dir_contents, copy_file_or_symlink, Logger
 
 
 class AssembleRootfsStage(PipelineNode):
@@ -31,6 +35,9 @@ class AssembleRootfsStage(PipelineNode):
         copy_file_or_symlink(run_script_src, run_script_dest)
         os.chmod(run_script_dest, 0o755)
 
+        allowed_failures_raw = context.config.get("ALLOWED_FAILURES", "")
+        allowed_failures = [x.strip() for x in allowed_failures_raw.split(",") if x.strip()]
+
         for src, dest in [
             ("daemon/target/x86_64-unknown-linux-musl/release/pronzed", "usr/bin/"),
             ("sdk/c/src/libpronze.so", "usr/lib/"),
@@ -41,7 +48,30 @@ class AssembleRootfsStage(PipelineNode):
             ("profiles/default.mfs", "runtime/profiles/"),
             ("kernel/pronze.ko", "kernel/"),
         ]:
-            copy_file_or_symlink(os.path.join(context.workspace_dir, src), os.path.join(context.rootfs_dir, dest))
+            src_path = os.path.join(context.workspace_dir, src)
+            if not os.path.exists(src_path):
+                mapping = None
+                if "daemon/" in src:
+                    mapping = "CompileDaemon"
+                elif "sdk/" in src or "test/test_" in src:
+                    mapping = "CompileSDK"
+                elif "kernel/" in src:
+                    mapping = "CompileKernelModule"
+
+                stage_failed = False
+                if mapping:
+                    from common import node_states
+                    state = node_states.get(mapping, {})
+                    if state.get("status") == "Failed" and mapping in allowed_failures:
+                        stage_failed = True
+
+                if stage_failed:
+                    Logger.log_warn(f"Skipping copy of missing allowed-to-fail build target: {src}")
+                    continue
+                else:
+                    raise FileNotFoundError(f"Required build target missing: {src_path}")
+
+            copy_file_or_symlink(src_path, os.path.join(context.rootfs_dir, dest))
 
         copy_file_or_symlink("/usr/lib/x86_64-linux-musl/libc.so", os.path.join(context.rootfs_dir, "lib/libc.so"))
         ld_link = os.path.join(context.rootfs_dir, "lib/ld-musl-x86_64.so.1")

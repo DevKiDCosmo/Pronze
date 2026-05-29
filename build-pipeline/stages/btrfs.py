@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import os
-from typing import override
+try:
+    from typing import override
+except ImportError:
+    def override(func):
+        return func
 
 from common import PipelineNode, PipelineContext, run_cmd
 

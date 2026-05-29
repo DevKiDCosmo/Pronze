@@ -45,7 +45,7 @@ for opt_path in "/opt/pronze" "/opt/pronzeos" "/opt/pronkern"; do
     if [ -d "$opt_path" ]; then
         if [ "$REMOVE_TARS" = "true" ]; then
             echo "[+] Cleaning ALL files and tarballs in persistent cache directory $opt_path..."
-            find "$opt_path" -mindepth 1 -delete 2>/dev/null || rm -rf "$opt_path"/*
+            find "$opt_path" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
         else
             echo "[+] Cleaning extracted sources in persistent cache directory $opt_path (preserving downloads & cached tarballs)..."
             rm -rf "$opt_path"/src
@@ -60,28 +60,28 @@ if [ ! -f /.dockerenv ] && command -v docker &>/dev/null; then
         echo "[+] Detected host environment. Purging Docker cache volumes..."
         
         # Purge standard volumes
-        docker run --rm -v pronkern-cache:/opt/pronkern ubuntu:24.04 find /opt/pronkern -mindepth 1 -delete 2>/dev/null || true
-        docker run --rm -v pronze-cache:/opt/pronze ubuntu:24.04 find /opt/pronze -mindepth 1 -delete 2>/dev/null || true
+        docker run --rm -v pronkern-cache:/opt/pronkern alpine sh -c "find /opt/pronkern -mindepth 1 -maxdepth 1 -exec rm -rf {} +" 2>/dev/null || true
+        docker run --rm -v pronze-cache:/opt/pronze alpine sh -c "find /opt/pronze -mindepth 1 -maxdepth 1 -exec rm -rf {} +" 2>/dev/null || true
         docker volume rm pronkern-cache 2>/dev/null || true
         docker volume rm pronze-cache 2>/dev/null || true
         
         # Purge worktree-specific volumes
         if [ "$WS_BASE" != "PronKern" ] && [ -n "$WS_BASE" ]; then
             echo "[+] Purging worktree-specific Docker cache volumes for $WS_BASE..."
-            docker run --rm -v "pronkern-cache-${WS_BASE}:/opt/pronkern" ubuntu:24.04 find /opt/pronkern -mindepth 1 -delete 2>/dev/null || true
-            docker run --rm -v "pronze-cache-${WS_BASE}:/opt/pronze" ubuntu:24.04 find /opt/pronze -mindepth 1 -delete 2>/dev/null || true
+            docker run --rm -v "pronkern-cache-${WS_BASE}:/opt/pronkern" alpine sh -c "find /opt/pronkern -mindepth 1 -maxdepth 1 -exec rm -rf {} +" 2>/dev/null || true
+            docker run --rm -v "pronze-cache-${WS_BASE}:/opt/pronze" alpine sh -c "find /opt/pronze -mindepth 1 -maxdepth 1 -exec rm -rf {} +" 2>/dev/null || true
             docker volume rm "pronkern-cache-${WS_BASE}" 2>/dev/null || true
             docker volume rm "pronze-cache-${WS_BASE}" 2>/dev/null || true
         fi
     else
         echo "[+] Detected host environment. Cleaning extracted sources inside Docker cache volumes..."
-        docker run --rm -v pronkern-cache:/opt/pronkern ubuntu:24.04 rm -rf /opt/pronkern/src 2>/dev/null || true
-        docker run --rm -v pronze-cache:/opt/pronze ubuntu:24.04 rm -rf /opt/pronze/src 2>/dev/null || true
+        docker run --rm -v pronkern-cache:/opt/pronkern alpine rm -rf /opt/pronkern/src 2>/dev/null || true
+        docker run --rm -v pronze-cache:/opt/pronze alpine rm -rf /opt/pronze/src 2>/dev/null || true
         
         if [ "$WS_BASE" != "PronKern" ] && [ -n "$WS_BASE" ]; then
             echo "[+] Cleaning worktree-specific Docker cache volumes for $WS_BASE..."
-            docker run --rm -v "pronkern-cache-${WS_BASE}:/opt/pronkern" ubuntu:24.04 rm -rf /opt/pronkern/src 2>/dev/null || true
-            docker run --rm -v "pronze-cache-${WS_BASE}:/opt/pronze" ubuntu:24.04 rm -rf /opt/pronze/src 2>/dev/null || true
+            docker run --rm -v "pronkern-cache-${WS_BASE}:/opt/pronkern" alpine rm -rf /opt/pronkern/src 2>/dev/null || true
+            docker run --rm -v "pronze-cache-${WS_BASE}:/opt/pronze" alpine rm -rf /opt/pronze/src 2>/dev/null || true
         fi
     fi
 fi

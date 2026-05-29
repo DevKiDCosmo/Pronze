@@ -824,6 +824,11 @@ HTML_CONTENT = """<!DOCTYPE html>
         .term-warn-text { color: #ffe066; }
         .term-info { color: #339af0; font-weight: bold; }
         .term-step { color: #15aabf; font-weight: bold; }
+        
+        #qemu-settings-toggle-btn:hover {
+            color: #ffffff !important;
+            transform: rotate(30deg);
+        }
     </style>
 </head>
 <body>
@@ -882,6 +887,39 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div class="metric-row">
                     <span>CACHE INTEGRITY</span>
                     <span id="cache-integrity">UNKNOWN</span>
+                </div>
+            </div>
+
+            <div class="console-box">
+                <div class="console-box-title">SOFTWARE & BUILD INFO</div>
+                <div class="metric-row">
+                    <span>BUILD NUMBER</span>
+                    <span id="info-build-number">N/A</span>
+                </div>
+                <div class="metric-row">
+                    <span>BUILD UUID</span>
+                    <span id="info-build-uuid" style="font-size: 0.75rem; color: #adb5bd; word-break: break-all; text-align: right; max-width: 60%;">N/A</span>
+                </div>
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 0.5rem 0;" />
+                <div class="metric-row">
+                    <span>KERNEL MODULE</span>
+                    <span>0.1</span>
+                </div>
+                <div class="metric-row">
+                    <span>SDK VERSION</span>
+                    <span>0.1.0</span>
+                </div>
+                <div class="metric-row">
+                    <span>FRAMEWORK</span>
+                    <span style="font-style: italic; color: #ced4da;">Currently In Progress</span>
+                </div>
+                <div class="metric-row">
+                    <span>DAEMON VERSION</span>
+                    <span>0.1.0</span>
+                </div>
+                <div class="metric-row">
+                    <span>USERSPACE VERSION</span>
+                    <span>0.1.0</span>
                 </div>
             </div>
 
@@ -1043,9 +1081,33 @@ HTML_CONTENT = """<!DOCTYPE html>
 
             <!-- QEMU Console Container -->
             <div class="console-box" id="qemu-console-box">
-                <div class="console-box-title">
+                <div class="console-box-title" style="position: relative; display: flex; justify-content: space-between; align-items: center;">
                     <span>QEMU GUEST CONSOLE</span>
-                    <span id="qemu-status-text" style="color: #adb5bd;">STOPPED</span>
+                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <span id="qemu-status-text" style="color: #adb5bd;">STOPPED</span>
+                        <button id="qemu-settings-toggle-btn" onclick="toggleQemuSettingsOverlay(event)" style="background: transparent; border: none; color: #ced4da; cursor: pointer; font-size: 1.1rem; padding: 0.2rem; display: flex; align-items: center; justify-content: center; outline: none; transition: color 0.2s, transform 0.2s;" title="QEMU Settings">⚙</button>
+                    </div>
+                    
+                    <!-- Settings Overlay -->
+                    <div id="qemu-settings-overlay" style="display: none; position: absolute; top: 100%; right: 10px; background: rgba(20, 20, 20, 0.95); border: 1px solid var(--border-color); border-radius: 8px; padding: 0.75rem 1rem; z-index: 100; box-shadow: 0 10px 25px rgba(0,0,0,0.5); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); flex-direction: column; gap: 0.75rem; width: 220px; font-family: inherit;">
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label for="qemu-display-select" style="font-weight: 500; font-size: 0.75rem; color: #adb5bd; text-align: left; margin: 0;">Display Mode:</label>
+                            <select id="qemu-display-select" onchange="updateQemuSettings()" style="background: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid var(--border-color); padding: 0.35rem 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.8rem; outline: none; cursor: pointer; width: 100%;">
+                                <option value="serial" style="background: #1e1e1e; color: #fff;">Serial (Headless)</option>
+                                <option value="graphics" style="background: #1e1e1e; color: #fff;">VGA Graphics (Render)</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 0.25rem;">
+                            <label for="qemu-pull-rate" style="font-weight: 500; font-size: 0.75rem; color: #adb5bd; text-align: left; margin: 0;">Log Pull Rate:</label>
+                            <select id="qemu-pull-rate" onchange="updateQemuSettings()" style="background: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid var(--border-color); padding: 0.35rem 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.8rem; outline: none; cursor: pointer; width: 100%;">
+                                <option value="50" style="background: #1e1e1e; color: #fff;">50 ms</option>
+                                <option value="100" style="background: #1e1e1e; color: #fff;">100 ms</option>
+                                <option value="250" style="background: #1e1e1e; color: #fff;">250 ms</option>
+                                <option value="500" style="background: #1e1e1e; color: #fff;">500 ms</option>
+                                <option value="1000" style="background: #1e1e1e; color: #fff;">1000 ms</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
                 
                 <div style="margin-bottom: 1rem; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
@@ -1070,9 +1132,6 @@ HTML_CONTENT = """<!DOCTYPE html>
 
     <script>
         let selectedStageName = "DownloadTarballs";
-        let serverStartTime = null;
-        let clientServerOffset = 0;
-        let timerInterval = null;
         let buildRunning = false;
         
         function selectStage(name) {
@@ -1082,34 +1141,67 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (el) el.classList.add("selected");
         }
 
-        // Start elapsed timer using server start time and current time
-        function startTimer(startTimeVal, serverCurrTimeVal) {
-            if (!startTimeVal) return;
-            serverStartTime = startTimeVal;
-            clientServerOffset = Date.now() - (serverCurrTimeVal * 1000);
-            buildRunning = true;
+        let timerInterval = null;
+        let lastServerStartTime = 0;
+        let lastServerCurrentTime = 0;
+        let clientTimeAtPacket = 0;
+
+        function startTimer(serverStartTime, serverCurrentTime) {
+            lastServerStartTime = serverStartTime;
+            lastServerCurrentTime = serverCurrentTime;
+            clientTimeAtPacket = Date.now() / 1000;
             
             if (timerInterval) clearInterval(timerInterval);
-            timerInterval = setInterval(updateTimerDisplay, 1000);
-            updateTimerDisplay();
+            
+            function tick() {
+                if (lastServerStartTime > 0) {
+                    const clientElapsed = (Date.now() / 1000) - clientTimeAtPacket;
+                    const elapsed = (lastServerCurrentTime - lastServerStartTime) + clientElapsed;
+                    updateTimerDisplay(elapsed);
+                } else {
+                    updateTimerDisplay(0);
+                }
+            }
+            tick();
+            timerInterval = setInterval(tick, 200);
         }
 
-        function updateTimerDisplay() {
-            if (!serverStartTime) return;
-            let elapsed = Math.floor((Date.now() - clientServerOffset - (serverStartTime * 1000)) / 1000);
-            if (elapsed < 0) elapsed = 0;
-            let mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
-            let secs = (elapsed % 60).toString().padStart(2, '0');
-            document.getElementById("elapsed-time").textContent = `${mins}:${secs}`;
-        }
-
-        function stopTimer() {
-            buildRunning = false;
+        function stopTimer(finalElapsed) {
             if (timerInterval) {
                 clearInterval(timerInterval);
                 timerInterval = null;
             }
+            if (finalElapsed !== undefined && finalElapsed !== null) {
+                updateTimerDisplay(finalElapsed);
+            }
         }
+
+        function updateTimerDisplay(elapsed) {
+            if (elapsed === undefined || elapsed === null) elapsed = 0;
+            let elapsedSec = Math.floor(elapsed);
+            if (elapsedSec < 0) elapsedSec = 0;
+            let mins = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+            let secs = (elapsedSec % 60).toString().padStart(2, '0');
+            document.getElementById("elapsed-time").textContent = `${mins}:${secs}`;
+        }
+
+        function toggleQemuSettingsOverlay(event) {
+            event.stopPropagation();
+            const overlay = document.getElementById("qemu-settings-overlay");
+            if (overlay.style.display === "none" || overlay.style.display === "") {
+                overlay.style.display = "flex";
+            } else {
+                overlay.style.display = "none";
+            }
+        }
+
+        document.addEventListener("click", function(event) {
+            const overlay = document.getElementById("qemu-settings-overlay");
+            const toggleBtn = document.getElementById("qemu-settings-toggle-btn");
+            if (overlay && overlay.style.display === "flex" && !overlay.contains(event.target) && event.target !== toggleBtn) {
+                overlay.style.display = "none";
+            }
+        });
 
         // PasswordWall / Authentication Flow
         let pendingAction = null;
@@ -1255,6 +1347,26 @@ HTML_CONTENT = """<!DOCTYPE html>
             });
         }
 
+        function updateQemuSettings() {
+            performProtectedAction((pw, onDone) => {
+                const display = document.getElementById("qemu-display-select").value;
+                const pullRate = document.getElementById("qemu-pull-rate").value;
+                fetch("/api/qemu/settings", {
+                    method: "POST",
+                    headers: { 
+                        "Content-Type": "application/json",
+                        "X-Portal-Password": pw
+                    },
+                    body: JSON.stringify({ display: display, pull_rate: parseInt(pullRate, 10) })
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    onDone();
+                })
+                .catch(err => { console.error("Failed to update QEMU settings:", err); onDone(); });
+            });
+        }
+
         // QEMU Console guest controls
         function triggerQemuStart() {
             performProtectedAction((pw, onDone) => {
@@ -1332,32 +1444,107 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
         }
 
-        // QEMU Log viewer parser
-        function parseLogLine(text) {
+        function ansiToHtml(text) {
             let escaped = text
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;");
 
-            const timestampRegex = /^(\s*\[\s*\d+\.\d+\s*\])(.*)$/;
-            const checkRegex = /^(\s*\[\s*✔\s*\])(.*)$/;
-            const crossRegex = /^(\s*\[\s*x\s*\])(.*)$/;
-            const warnRegex = /^(\s*\[\s*!\s*\])(.*)$/;
-            const infoRegex = /^(\s*\[\s*i\s*\])(.*)$/;
-            const stepRegex = /^(\s*\[\s*(\+|•)\s*\])(.*)$/;
+            const ansiRegex = /\\u001b\\[([0-9;]*)m/g;
+            let openSpans = 0;
+            
+            let html = escaped.replace(ansiRegex, (match, p1) => {
+                if (!p1 || p1 === "0") {
+                    let res = "";
+                    while (openSpans > 0) {
+                        res += "</span>";
+                        openSpans--;
+                    }
+                    return res;
+                }
+                
+                const codes = p1.split(";");
+                let style = "";
+                
+                for (let i = 0; i < codes.length; i++) {
+                    const code = parseInt(codes[i], 10);
+                    if (isNaN(code)) continue;
+                    
+                    if (code === 1) {
+                        style += "font-weight: bold;";
+                    } else if (code === 3) {
+                        style += "font-style: italic;";
+                    } else if (code === 4) {
+                        style += "text-decoration: underline;";
+                    } else if (code >= 30 && code <= 37) {
+                        const colors = [
+                            "#2e3440", "#bf616a", "#a3be8c", "#ebcb8b",
+                            "#81a1c1", "#b48ead", "#88c0d0", "#e5e9f0"
+                        ];
+                        style += "color: " + colors[code - 30] + ";";
+                    } else if (code === 39) {
+                        style += "color: inherit;";
+                    } else if (code >= 40 && code <= 47) {
+                        const bgColors = [
+                            "#2e3440", "#bf616a", "#a3be8c", "#ebcb8b",
+                            "#81a1c1", "#b48ead", "#88c0d0", "#e5e9f0"
+                        ];
+                        style += "background-color: " + bgColors[code - 40] + ";";
+                    } else if (code === 49) {
+                        style += "background-color: inherit;";
+                    } else if (code >= 90 && code <= 97) {
+                        const brightColors = [
+                            "#4c566a", "#d08770", "#a3be8c", "#ebcb8b",
+                            "#8fbcbb", "#b48ead", "#88c0d0", "#eceff4"
+                        ];
+                        style += "color: " + brightColors[code - 90] + ";";
+                    } else if (code >= 100 && code <= 107) {
+                        const brightBgColors = [
+                            "#4c566a", "#d08770", "#a3be8c", "#ebcb8b",
+                            "#8fbcbb", "#b48ead", "#88c0d0", "#eceff4"
+                        ];
+                        style += "background-color: " + brightBgColors[code - 100] + ";";
+                    }
+                }
+                
+                if (style) {
+                    openSpans++;
+                    return '<span style="' + style + '">';
+                }
+                return "";
+            });
+            
+            while (openSpans > 0) {
+                html += "</span>";
+                openSpans--;
+            }
+            
+            return html;
+        }
+
+        // QEMU Log viewer parser
+        function parseLogLine(text) {
+            let escaped = ansiToHtml(text);
+
+            const timestampRegex = /^((?:<span[^>]*>)*)(\\s*\\[\\s*\\d+\\.\\d+\\s*\\])(.*)$/;
+            const checkRegex = /^((?:<span[^>]*>)*)(\\s*\\[\\s*✔\\s*\\])(.*)$/;
+            const crossRegex = /^((?:<span[^>]*>)*)(\\s*\\[\\s*x\\s*\\])(.*)$/;
+            const warnRegex = /^((?:<span[^>]*>)*)(\\s*\\[\\s*!\\s*\\])(.*)$/;
+            const infoRegex = /^((?:<span[^>]*>)*)(\\s*\\[\\s*i\\s*\\])(.*)$/;
+            const stepRegex = /^((?:<span[^>]*>)*)(\\s*\\[\\s*(?:\\+|•)\\s*\\])(.*)$/;
 
             if (timestampRegex.test(escaped)) {
-                return escaped.replace(timestampRegex, '<span class="term-tstamp">$1</span>$2');
+                return escaped.replace(timestampRegex, '$1<span class="term-tstamp">$2</span>$3');
             } else if (checkRegex.test(escaped)) {
-                return escaped.replace(checkRegex, '<span class="term-check">$1</span><span class="term-check-text">$2</span>');
+                return escaped.replace(checkRegex, '$1<span class="term-check">$2</span><span class="term-check-text">$3</span>');
             } else if (crossRegex.test(escaped)) {
-                return escaped.replace(crossRegex, '<span class="term-error">$1</span><span class="term-error-text">$2</span>');
+                return escaped.replace(crossRegex, '$1<span class="term-error">$2</span><span class="term-error-text">$3</span>');
             } else if (warnRegex.test(escaped)) {
-                return escaped.replace(warnRegex, '<span class="term-warn">$1</span><span class="term-warn-text">$2</span>');
+                return escaped.replace(warnRegex, '$1<span class="term-warn">$2</span><span class="term-warn-text">$3</span>');
             } else if (infoRegex.test(escaped)) {
-                return escaped.replace(infoRegex, '<span class="term-info">$1</span>$2');
+                return escaped.replace(infoRegex, '$1<span class="term-info">$2</span>$3');
             } else if (stepRegex.test(escaped)) {
-                return escaped.replace(stepRegex, '<span class="term-step">$1</span>$2');
+                return escaped.replace(stepRegex, '$1<span class="term-step">$2</span>$3');
             }
             return escaped;
         }
@@ -1387,7 +1574,7 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         // SSE Connection
         const evtSource = new EventSource("/events");
-        
+
         evtSource.addEventListener("state", (e) => {
             const payload = JSON.parse(e.data);
             const states = payload.nodes || payload;
@@ -1397,7 +1584,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             for (const [name, data] of Object.entries(states)) {
                 updateNode(name, data.status, data.details, data.elapsed);
-                if (data.status === "Success" || data.status === "Skipped") {
+                if (data.status === "Success" || data.status === "Skipped" || (data.status === "Failed" && data.details && data.details.includes("[Allowed]"))) {
                     successCount++;
                 }
                 if (data.status === "Running") {
@@ -1406,13 +1593,14 @@ HTML_CONTENT = """<!DOCTYPE html>
                 }
             }
             
-            if (payload.build_start_time && payload.build_active) {
+            if (payload.build_active) {
                 startTimer(payload.build_start_time, payload.server_current_time);
                 updateGlobalStatus("BUILDING", "building");
             } else if (payload.build_completed) {
-                stopTimer();
+                stopTimer(payload.elapsed_time);
                 updateGlobalStatus(payload.final_status_text ? payload.final_status_text.toUpperCase() : "COMPLETE", payload.final_status_text && payload.final_status_text.toLowerCase() === "failed" ? "failed" : "success");
             } else {
+                stopTimer(0);
                 updateGlobalStatus("IDLE", "idle");
             }
 
@@ -1430,6 +1618,26 @@ HTML_CONTENT = """<!DOCTYPE html>
                 document.getElementById("qemu-stop-btn").disabled = true;
                 document.getElementById("qemu-input-container").style.display = "none";
             }
+
+            // Sync QEMU display and pull rate dropdown values
+            if (payload.qemu_display_mode && document.activeElement !== document.getElementById("qemu-display-select")) {
+                document.getElementById("qemu-display-select").value = payload.qemu_display_mode;
+            }
+            if (payload.qemu_pull_rate && document.activeElement !== document.getElementById("qemu-pull-rate")) {
+                document.getElementById("qemu-pull-rate").value = payload.qemu_pull_rate;
+            }
+
+            // Sync Build Tracking and Software Versions info card
+            if (payload.build_number) {
+                document.getElementById("info-build-number").textContent = "#" + payload.build_number;
+            } else {
+                document.getElementById("info-build-number").textContent = "N/A";
+            }
+            if (payload.build_uuid) {
+                document.getElementById("info-build-uuid").textContent = payload.build_uuid;
+            } else {
+                document.getElementById("info-build-uuid").textContent = "N/A";
+            }
             
             updateBuildProgress(successCount, totalCount);
         });
@@ -1439,17 +1647,15 @@ HTML_CONTENT = """<!DOCTYPE html>
             updateNode(data.name, data.status, data.details, data.elapsed);
             
             if (data.status === "Running") {
-                if (data.build_start_time) {
-                    startTimer(data.build_start_time, data.server_current_time);
-                }
                 updateGlobalStatus("BUILDING", "building");
                 selectStage(data.name);
+                startTimer(data.build_start_time, data.server_current_time);
             }
             
             let cards = document.querySelectorAll(".node-card");
             let successCount = 0;
             cards.forEach(card => {
-                if (card.classList.contains("success") || card.classList.contains("skipped")) {
+                if (card.classList.contains("success") || card.classList.contains("skipped") || (card.classList.contains("failed") && card.querySelector(".node-status-label")?.textContent.includes("Allowed"))) {
                     successCount++;
                 }
             });
@@ -1572,7 +1778,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             
             const statusEl = document.getElementById("status-" + name);
             if (statusEl) {
-                statusEl.textContent = status === "Success" ? "Complete" : status;
+                if (status === "Success") {
+                    statusEl.textContent = "Complete";
+                } else if (status === "Failed" && details && details.includes("[Allowed]")) {
+                    statusEl.textContent = "Failed (Allowed)";
+                } else {
+                    statusEl.textContent = status;
+                }
             }
             
             const durEl = document.getElementById("duration-" + name);
@@ -1677,14 +1889,7 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
             q = queue.Queue()
             clients.append(q)
             
-            state_payload = {
-                "nodes": node_states,
-                "build_start_time": build_start_time,
-                "server_current_time": time.time(),
-                "build_completed": build_completed,
-                "build_active": build_active,
-                "qemu_active": qemu_process is not None and qemu_process.poll() is None
-            }
+            state_payload = get_state_payload()
             initial_state_msg = f"event: state\ndata: {json.dumps(state_payload)}\n\n"
             with log_lock:
                 initial_logs_msg = f"event: initial_logs\ndata: {json.dumps(log_buffers)}\n\n"
@@ -1868,7 +2073,15 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(json.dumps({"error": "Build already active"}).encode('utf-8'))
                     return
-                Logger.log_info("Rebuild pipeline requested from web view")
+                Logger.log_info("Rebuild pipeline requested from web view - clearing cache flags to force compilation")
+                # Clear all .done and .hash files in output-nochanges to force rebuild
+                if os.path.isdir(global_context.nochanges_dir):
+                    for f in os.listdir(global_context.nochanges_dir):
+                        if f.endswith(".done") or f.endswith(".hash") or f == "hashes.json":
+                            try:
+                                os.remove(os.path.join(global_context.nochanges_dir, f))
+                            except Exception as e:
+                                Logger.log_warn(f"Failed to clear cache file {f} during rebuild: {e}")
                 # Trigger rebuild
                 build_queue.put((global_context, global_pipeline))
                 self.send_response(200)
@@ -1877,6 +2090,30 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
             else:
                 self.send_error(500, "Context/Pipeline not initialized")
+                
+        elif self.path == '/api/qemu/settings':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8')
+            try:
+                data = json.loads(body)
+                global qemu_display_mode, qemu_pull_rate
+                qemu_display_mode = data.get("display", qemu_display_mode)
+                qemu_pull_rate = data.get("pull_rate", qemu_pull_rate)
+                
+                if global_context:
+                    broadcast_status(global_context)
+                
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+                return
+            except Exception as e:
+                Logger.log_error(f"Error updating QEMU settings: {e}")
+            self.send_response(400)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": "Invalid settings input"}).encode('utf-8'))
                 
         elif self.path == '/api/qemu/start':
             if global_context:
@@ -1962,19 +2199,32 @@ def load_portal_password(workspace_dir):
     
     PORTAL_PASSWORD = password
 
-def broadcast_status(context):
-    if no_view_flag:
-        return
-    
-    # 1. State
-    state_payload = {
+def get_state_payload():
+    elapsed_time = 0.0
+    if build_active and build_start_time > 0:
+        elapsed_time = time.time() - build_start_time
+    elif build_completed:
+        elapsed_time = total_build_time
+        
+    return {
         "nodes": node_states,
         "build_start_time": build_start_time,
         "server_current_time": time.time(),
         "build_completed": build_completed,
         "build_active": build_active,
-        "qemu_active": qemu_process is not None and qemu_process.poll() is None
+        "qemu_active": qemu_process is not None and qemu_process.poll() is None,
+        "qemu_display_mode": qemu_display_mode,
+        "qemu_pull_rate": qemu_pull_rate,
+        "elapsed_time": elapsed_time,
+        "build_number": build_number,
+        "build_uuid": build_uuid
     }
+
+def broadcast_status(context):
+    if no_view_flag:
+        return
+    
+    state_payload = get_state_payload()
     state_msg = f"event: state\ndata: {json.dumps(state_payload)}\n\n"
     
     # 2. Hashes
@@ -2015,8 +2265,33 @@ def find_ovmf_firmware():
                         return os.path.join(root, f)
     return None
 
+def flush_qemu_logs():
+    global qemu_batch_buffer
+    to_send = ""
+    with qemu_batch_lock:
+        if qemu_batch_buffer:
+            to_send = qemu_batch_buffer
+            qemu_batch_buffer = ""
+    if to_send:
+        msg = f"event: qemu_log\ndata: {json.dumps(to_send)}\n\n"
+        for q in list(clients):
+            try:
+                q.put(msg)
+            except Exception:
+                pass
+
+def qemu_flusher():
+    global qemu_process, qemu_pull_rate
+    while True:
+        proc = qemu_process
+        if not proc or proc.poll() is not None:
+            flush_qemu_logs()
+            break
+        flush_qemu_logs()
+        time.sleep(qemu_pull_rate / 1000.0)
+
 def qemu_reader():
-    global qemu_process, qemu_log_buffer
+    global qemu_process, qemu_log_buffer, qemu_batch_buffer
     while True:
         proc = qemu_process
         if not proc or proc.poll() is not None:
@@ -2029,12 +2304,8 @@ def qemu_reader():
                 qemu_log_buffer += char
                 if len(qemu_log_buffer) > 200000:
                     qemu_log_buffer = qemu_log_buffer[-100000:]
-            msg = f"event: qemu_log\ndata: {json.dumps(char)}\n\n"
-            for q in list(clients):
-                try:
-                    q.put(msg)
-                except Exception:
-                    pass
+            with qemu_batch_lock:
+                qemu_batch_buffer += char
         except Exception:
             break
     
@@ -2047,7 +2318,7 @@ def qemu_reader():
             pass
 
 def start_qemu_guest(workspace_dir):
-    global qemu_process, qemu_log_buffer, qemu_reader_thread
+    global qemu_process, qemu_log_buffer, qemu_reader_thread, qemu_flusher_thread, qemu_display_mode
     if qemu_process and qemu_process.poll() is None:
         return True, "QEMU is already running."
     
@@ -2060,13 +2331,25 @@ def start_qemu_guest(workspace_dir):
     qemu_cmd = [
         "qemu-system-x86_64",
         "-m", "1G",
-        "-hda", img_path,
-        "-display", "none",
-        "-serial", "stdio"
+        "-drive", f"file={img_path},format=raw,index=0,media=disk"
     ]
+    
+    in_docker = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+    
+    if qemu_display_mode == "serial":
+        qemu_cmd.extend(["-display", "none", "-serial", "stdio"])
+    else:
+        # Graphics display mode
+        if in_docker:
+            qemu_cmd.extend(["-display", "vnc=0.0.0.0:0", "-vga", "std"])
+            Logger.log_info("Running inside Docker: using VNC display backend for VGA graphics (0.0.0.0:0 / port 5900)")
+        else:
+            qemu_cmd.extend(["-vga", "std"])
+            Logger.log_info("Running on host: using default display backend for VGA graphics")
+        
     if ovmf_path:
-        qemu_cmd.extend(["-drive", f"if=pflash,format=raw,unit=0,file={ovmf_path},readonly=on"])
-        Logger.log_info(f"Using UEFI firmware: {ovmf_path}")
+        qemu_cmd.extend(["-bios", ovmf_path])
+        Logger.log_info(f"Using UEFI firmware via -bios: {ovmf_path}")
     else:
         Logger.log_warn("No UEFI firmware found. systemd-boot inside guest might fail.")
 
@@ -2083,6 +2366,9 @@ def start_qemu_guest(workspace_dir):
         
         qemu_reader_thread = threading.Thread(target=qemu_reader, daemon=True)
         qemu_reader_thread.start()
+        
+        qemu_flusher_thread = threading.Thread(target=qemu_flusher, daemon=True)
+        qemu_flusher_thread.start()
         
         msg = f"event: qemu_started\ndata: {{}}\n\n"
         for q in list(clients):
@@ -2113,7 +2399,7 @@ def stop_qemu_guest():
         return False, f"Error stopping QEMU: {e}"
 
 def build_worker():
-    global build_active, build_completed, total_build_time, final_status_text, build_start_time
+    global build_active, build_completed, total_build_time, final_status_text, build_start_time, build_uuid, global_pipeline
     while True:
         task = build_queue.get()
         if task is None:
@@ -2121,8 +2407,22 @@ def build_worker():
             break
         
         context, pipeline = task
+        global_pipeline = pipeline
         build_active = True
         try:
+            # Re-create all context directories to prevent errors if they were deleted by fclean/clean
+            os.makedirs(context.opt_dir, exist_ok=True)
+            os.makedirs(context.download_dir, exist_ok=True)
+            os.makedirs(context.src_dir, exist_ok=True)
+            os.makedirs(context.output_dir, exist_ok=True)
+            os.makedirs(context.work_dir, exist_ok=True)
+            os.makedirs(context.rootfs_dir, exist_ok=True)
+            os.makedirs(context.nochanges_dir, exist_ok=True)
+
+            # Generate new UUID for the active build
+            import uuid
+            build_uuid = str(uuid.uuid4())
+
             # Reset build state
             build_completed = False
             total_build_time = 0.0
@@ -2151,6 +2451,19 @@ def build_worker():
 # Start background build worker thread
 build_thread = threading.Thread(target=build_worker, daemon=True)
 build_thread.start()
+
+def status_broadcast_loop():
+    global build_active, global_context
+    while True:
+        if build_active and global_context:
+            try:
+                broadcast_status(global_context)
+            except Exception:
+                pass
+        time.sleep(1)
+
+# Start background status broadcast loop thread
+threading.Thread(target=status_broadcast_loop, daemon=True).start()
 
 # -----------------------------------------------------------------------------
 # 4. Pipeline Infrastructure (DAG Context, Nodes, and Graph Exec)
@@ -2223,6 +2536,7 @@ class PipelineContext:
         global global_context
         global_context = self
         load_portal_password(self.workspace_dir)
+        init_build_info(self.workspace_dir)
 
         self.config = self._load_config()
 
@@ -2304,14 +2618,21 @@ class Pipeline:
                     update_node_status(node.name, "Success", node_states[node.name].get("details", ""), elapsed=elapsed_t)
             except Exception as e:
                 elapsed_t = time.time() - start_t
-                update_node_status(node.name, "Failed", f"Error ({elapsed_t:.2f}s)", elapsed=elapsed_t)
-                Logger.log_error(f"Failed executing {node.name}: {e}")
-                
-                total_build_time = time.time() - overall_start_t
-                final_status_text = "Failed"
-                build_completed = True
-                send_total_report(total_build_time, "Failed")
-                return
+                allowed_failures_raw = context.config.get("ALLOWED_FAILURES", "")
+                allowed_failures = [x.strip() for x in allowed_failures_raw.split(",") if x.strip()]
+                if node.name in allowed_failures:
+                    update_node_status(node.name, "Failed", f"Error ({elapsed_t:.2f}s) [Allowed]", elapsed=elapsed_t)
+                    Logger.log_warn(f"Stage {node.name} failed, but failure is allowed under ALLOWED_FAILURES. Continuing pipeline.")
+                    continue
+                else:
+                    update_node_status(node.name, "Failed", f"Error ({elapsed_t:.2f}s)", elapsed=elapsed_t)
+                    Logger.log_error(f"Failed executing {node.name}: {e}")
+                    
+                    total_build_time = time.time() - overall_start_t
+                    final_status_text = "Failed"
+                    build_completed = True
+                    send_total_report(total_build_time, "Failed")
+                    return
 
         total_time = time.time() - overall_start_t
         Logger.log_section("          Build Completion Report          ")
@@ -2338,6 +2659,67 @@ class Pipeline:
             Logger.log_warn(f"Failed to save hashes to hashes.json: {e}")
 
         send_total_report(total_time, "Complete")
+
+        global build_number, build_uuid
+        # Increment build number and archive if not skipped
+        if not getattr(context, 'skip_remaining', False):
+            try:
+                archive_dir = os.path.join(context.workspace_dir, ".archive")
+                os.makedirs(archive_dir, exist_ok=True)
+                build_number_file = os.path.join(archive_dir, "build_number")
+                build_number = 1
+                if os.path.exists(build_number_file):
+                    try:
+                        with open(build_number_file, 'r') as f:
+                            build_number = int(f.read().strip()) + 1
+                    except Exception:
+                        pass
+                with open(build_number_file, 'w') as f:
+                    f.write(str(build_number))
+                
+                # Use the UUID generated at the start of build in build_worker
+                # Archive outputs
+                target = context.target  # "distro" or "module"
+                version = "0.1.0" if target == "distro" else "0.1"
+                
+                dest_dir = os.path.join(archive_dir, target, version)
+                os.makedirs(dest_dir, exist_ok=True)
+                
+                copied_files = []
+                if target == "distro":
+                    img_src = os.path.join(context.output_dir, "pronzeos.img")
+                    if os.path.exists(img_src):
+                        shutil.copy2(img_src, os.path.join(dest_dir, "pronzeos.img"))
+                        copied_files.append("pronzeos.img")
+                elif target == "module":
+                    ko_src = os.path.join(context.output_dir, "pronze.ko")
+                    if os.path.exists(ko_src):
+                        shutil.copy2(ko_src, os.path.join(dest_dir, "pronze.ko"))
+                        copied_files.append("pronze.ko")
+                
+                # Write meta.json
+                import datetime
+                meta_path = os.path.join(dest_dir, "meta.json")
+                meta_data = {
+                    "uuid": build_uuid,
+                    "build_number": build_number,
+                    "target": target,
+                    "version": version,
+                    "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                    "files": copied_files,
+                    "versions": {
+                        "kernel_module": "0.1",
+                        "sdk": "0.1.0",
+                        "framework": "Currently In Progress",
+                        "daemon": "0.1.0",
+                        "userspace": "0.1.0"
+                    }
+                }
+                with open(meta_path, 'w') as f:
+                    json.dump(meta_data, f, indent=2)
+                Logger.log_success(f"Archived build #{build_number} (UUID: {build_uuid}) to {dest_dir}")
+            except Exception as e:
+                Logger.log_warn(f"Failed to archive build: {e}")
 
 def run_cmd(cmd, cwd=None, env=None, input_data=None):
     stage_name = current_stage_name

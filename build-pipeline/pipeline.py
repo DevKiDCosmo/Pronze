@@ -69,14 +69,15 @@ def main():
     pipeline.build_graph()
 
     if not args.no_view:
-        from common import build_queue, start_http_server
+        import common
+        common.global_pipeline = pipeline
         try:
-            start_http_server(args.port)
+            common.start_http_server(args.port)
         except Exception as e:
             Logger.log_warn(f"Failed to start http server: {e}")
         
         # Enqueue the first build run
-        build_queue.put((context, pipeline))
+        common.build_queue.put((context, pipeline))
         
         Logger.log_info(f"Web GUI is active at http://localhost:{args.port}")
         Logger.log_info("Press Ctrl+C to exit and stop the server.")

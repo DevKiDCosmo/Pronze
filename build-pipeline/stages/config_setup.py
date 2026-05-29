@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import os
-from typing import override
+try:
+    from typing import override
+except ImportError:
+    def override(func):
+        return func
 
 from common import PipelineNode, PipelineContext, Logger, copy_dir_contents, copy_file_or_symlink
 

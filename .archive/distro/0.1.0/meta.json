@@ -1,0 +1,17 @@
+{
+  "uuid": "d56434d7-be82-4229-b1e5-dd16144c24f8",
+  "build_number": 3,
+  "target": "distro",
+  "version": "0.1.0",
+  "timestamp": "2026-05-29T20:00:00.511105Z",
+  "files": [
+    "pronzeos.img"
+  ],
+  "versions": {
+    "kernel_module": "0.1",
+    "sdk": "0.1.0",
+    "framework": "Currently In Progress",
+    "daemon": "0.1.0",
+    "userspace": "0.1.0"
+  }
+}

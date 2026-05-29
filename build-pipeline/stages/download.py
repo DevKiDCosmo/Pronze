@@ -8,6 +8,7 @@ class DownloadTarballsStage(PipelineNode):
         super().__init__("DownloadTarballs")
 
     def run(self, context):
+        os.makedirs(context.download_dir, exist_ok=True)
         def download(url, dest):
             if os.path.exists(dest):
                 Logger.log_info(f"Cached: {os.path.basename(dest)}")

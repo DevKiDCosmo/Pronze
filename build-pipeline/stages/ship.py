@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import os
 import shutil
-from typing import override
+try:
+    from typing import override
+except ImportError:
+    def override(func):
+        return func
 
 from common import PipelineNode, PipelineContext, Logger, update_node_status, compute_all_hashes, write_json_file, write_stage_flags
 
