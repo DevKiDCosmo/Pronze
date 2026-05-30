@@ -101,6 +101,86 @@ qemu_flusher_thread = None
 build_number = 0
 build_uuid = "N/A"
 
+def get_stage_builds_file(workspace_dir):
+    archive_dir = os.path.join(workspace_dir, ".archive")
+    os.makedirs(archive_dir, exist_ok=True)
+    return os.path.join(archive_dir, "stage_builds.json")
+
+def load_stage_builds(workspace_dir):
+    fpath = get_stage_builds_file(workspace_dir)
+    if os.path.exists(fpath):
+        try:
+            with open(fpath, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def save_stage_builds(workspace_dir, data):
+    fpath = get_stage_builds_file(workspace_dir)
+    try:
+        with open(fpath, 'w') as f:
+            json.dump(data, f, indent=2)
+    except Exception as e:
+        Logger.log_warn(f"Failed to save stage builds: {e}")
+
+def update_stage_build_info(workspace_dir, stage_name, status, compiled=True):
+    data = load_stage_builds(workspace_dir)
+    
+    if stage_name not in data:
+        data[stage_name] = {
+            "build_number": 0,
+            "uuid": "N/A",
+            "status": "Pending",
+            "timestamp": 0.0
+        }
+        
+    if compiled:
+        data[stage_name]["build_number"] += 1
+        import uuid
+        data[stage_name]["uuid"] = str(uuid.uuid4())
+        
+    data[stage_name]["status"] = status
+    data[stage_name]["timestamp"] = time.time()
+    
+    save_stage_builds(workspace_dir, data)
+
+def get_stats_file(workspace_dir):
+    archive_dir = os.path.join(workspace_dir, ".archive")
+    os.makedirs(archive_dir, exist_ok=True)
+    return os.path.join(archive_dir, "stats.json")
+
+def load_build_stats(workspace_dir):
+    fpath = get_stats_file(workspace_dir)
+    if os.path.exists(fpath):
+        try:
+            with open(fpath, 'r') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {
+        "total_builds": 0,
+        "successful_builds": 0,
+        "failed_builds": 0
+    }
+
+def save_build_stats(workspace_dir, stats):
+    fpath = get_stats_file(workspace_dir)
+    try:
+        with open(fpath, 'w') as f:
+            json.dump(stats, f, indent=2)
+    except Exception as e:
+        Logger.log_warn(f"Failed to save build stats: {e}")
+
+def update_build_stats(workspace_dir, status):
+    stats = load_build_stats(workspace_dir)
+    stats["total_builds"] += 1
+    if status == "Complete":
+        stats["successful_builds"] += 1
+    elif status == "Failed":
+        stats["failed_builds"] += 1
+    save_build_stats(workspace_dir, stats)
+
 def init_build_info(workspace_dir):
     global build_number
     archive_dir = os.path.join(workspace_dir, ".archive")
@@ -574,6 +654,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
+            position: relative;
         }
 
         .stage-row {
@@ -583,19 +664,51 @@ HTML_CONTENT = """<!DOCTYPE html>
             position: relative;
         }
 
-        .stage-row::after {
-            content: '';
-            position: absolute;
-            bottom: -1.5rem;
-            left: 50%;
-            width: 3px;
-            height: 1.5rem;
-            background: var(--border-color);
-            z-index: 0;
+        /* Building Facility Container */
+        .building-facility-container {
+            border: 3px solid var(--border-color);
+            background-color: rgba(255, 255, 255, 0.4);
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.06'/%3E%3C/svg%3E");
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 1.25rem 1rem;
+            margin: 0.5rem 0;
+            box-shadow: 6px 6px 0px var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            position: relative;
+            z-index: 2;
         }
 
-        .stage-row:last-child::after {
-            display: none;
+        .facility-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .facility-title {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: bold;
+            letter-spacing: 0.05em;
+            color: #212529;
+        }
+
+        .facility-timer {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        @keyframes dash {
+            to {
+                stroke-dashoffset: -20;
+            }
         }
 
         /* Node Card with Grain Overlay */
@@ -668,6 +781,17 @@ HTML_CONTENT = """<!DOCTYPE html>
             font-weight: bold;
             color: #495057;
             float: right;
+        }
+
+        .node-meta {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: #495057;
+            margin-top: 0.25rem;
+            display: flex;
+            justify-content: space-between;
+            border-top: 1px dashed rgba(0, 0, 0, 0.1);
+            padding-top: 0.25rem;
         }
 
         .duration-table {
@@ -902,12 +1026,25 @@ HTML_CONTENT = """<!DOCTYPE html>
                 </div>
                 <hr style="border: none; border-top: 1px solid var(--border-color); margin: 0.5rem 0;" />
                 <div class="metric-row">
+                    <span>TOTAL BUILDS</span>
+                    <span id="info-total-builds">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>SUCCESSFUL BUILDS</span>
+                    <span id="info-successful-builds" style="color: #37b24d; font-weight: bold;">0</span>
+                </div>
+                <div class="metric-row">
+                    <span>FAILED BUILDS</span>
+                    <span id="info-failed-builds" style="color: #f03e3e; font-weight: bold;">0</span>
+                </div>
+                <hr style="border: none; border-top: 1px solid var(--border-color); margin: 0.5rem 0;" />
+                <div class="metric-row">
                     <span>KERNEL MODULE</span>
-                    <span>0.1</span>
+                    <span id="version-kernel-module">0.1</span>
                 </div>
                 <div class="metric-row">
                     <span>SDK VERSION</span>
-                    <span>0.1.0</span>
+                    <span id="version-sdk">0.1.0</span>
                 </div>
                 <div class="metric-row">
                     <span>FRAMEWORK</span>
@@ -915,11 +1052,11 @@ HTML_CONTENT = """<!DOCTYPE html>
                 </div>
                 <div class="metric-row">
                     <span>DAEMON VERSION</span>
-                    <span>0.1.0</span>
+                    <span id="version-daemon">0.1.0</span>
                 </div>
                 <div class="metric-row">
                     <span>USERSPACE VERSION</span>
-                    <span>0.1.0</span>
+                    <span id="version-userspace">0.1.0</span>
                 </div>
             </div>
 
@@ -958,117 +1095,142 @@ HTML_CONTENT = """<!DOCTYPE html>
         <div class="right-panel">
             <div class="console-box">
                 <div class="console-box-title">PIPELINE STAGES (DAG)</div>
-                <div class="dag-tree">
-                    <!-- Level 1 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-DownloadTarballs" onclick="selectStage('DownloadTarballs')">
-                            <div class="node-name">Download Tarballs</div>
-                            <span class="node-status-label" id="status-DownloadTarballs">Pending</span>
-                            <span class="node-duration" id="duration-DownloadTarballs"></span>
+                <div style="position: relative;" id="dag-container">
+                    <svg id="dag-svg" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 3;"></svg>
+                    <div class="dag-tree" style="position: relative; z-index: 2;">
+                        <!-- Level 1 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-DownloadTarballs" onclick="selectStage('DownloadTarballs')">
+                                <div class="node-name">Download Tarballs</div>
+                                <span class="node-status-label" id="status-DownloadTarballs">Pending</span>
+                                <span class="node-duration" id="duration-DownloadTarballs"></span>
+                                <div class="node-meta" id="meta-DownloadTarballs" style="display: none;"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Level 2 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-CheckEarlyExit" onclick="selectStage('CheckEarlyExit')">
-                            <div class="node-name">Verify Cache</div>
-                            <span class="node-status-label" id="status-CheckEarlyExit">Pending</span>
-                            <span class="node-duration" id="duration-CheckEarlyExit"></span>
+                        <!-- Level 2 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-CheckEarlyExit" onclick="selectStage('CheckEarlyExit')">
+                                <div class="node-name">Verify Cache</div>
+                                <span class="node-status-label" id="status-CheckEarlyExit">Pending</span>
+                                <span class="node-duration" id="duration-CheckEarlyExit"></span>
+                                <div class="node-meta" id="meta-CheckEarlyExit" style="display: none;"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Level 3 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-ExtractTarballs" onclick="selectStage('ExtractTarballs')">
-                            <div class="node-name">Extract Sources</div>
-                            <span class="node-status-label" id="status-ExtractTarballs">Pending</span>
-                            <span class="node-duration" id="duration-ExtractTarballs"></span>
+                        <!-- Level 3 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-ExtractTarballs" onclick="selectStage('ExtractTarballs')">
+                                <div class="node-name">Extract Sources</div>
+                                <span class="node-status-label" id="status-ExtractTarballs">Pending</span>
+                                <span class="node-duration" id="duration-ExtractTarballs"></span>
+                                <div class="node-meta" id="meta-ExtractTarballs" style="display: none;"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Level 4 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-CompileKernel" onclick="selectStage('CompileKernel')">
-                            <div class="node-name">Compile Kernel</div>
-                            <span class="node-status-label" id="status-CompileKernel">Pending</span>
-                            <span class="node-duration" id="duration-CompileKernel"></span>
+                        <!-- Building Facility -->
+                        <div class="building-facility-container">
+                            <div class="facility-header">
+                                <span class="facility-title">BUILDING FACILITY</span>
+                                <span class="facility-timer" id="facility-timer">00:00</span>
+                            </div>
+                            <!-- Level 4 -->
+                            <div class="stage-row">
+                                <div class="node-card pending" id="node-CompileKernel" onclick="selectStage('CompileKernel')">
+                                    <div class="node-name">Compile Kernel</div>
+                                    <span class="node-status-label" id="status-CompileKernel">Pending</span>
+                                    <span class="node-duration" id="duration-CompileKernel"></span>
+                                    <div class="node-meta" id="meta-CompileKernel" style="display: none;"></div>
+                                </div>
+                                <div class="node-card pending" id="node-CompileBusybox" onclick="selectStage('CompileBusybox')">
+                                    <div class="node-name">Compile BusyBox</div>
+                                    <span class="node-status-label" id="status-CompileBusybox">Pending</span>
+                                    <span class="node-duration" id="duration-CompileBusybox"></span>
+                                    <div class="node-meta" id="meta-CompileBusybox" style="display: none;"></div>
+                                </div>
+                                <div class="node-card pending" id="node-CompileS6" onclick="selectStage('CompileS6')">
+                                    <div class="node-name">Compile s6</div>
+                                    <span class="node-status-label" id="status-CompileS6">Pending</span>
+                                    <span class="node-duration" id="duration-CompileS6"></span>
+                                    <div class="node-meta" id="meta-CompileS6" style="display: none;"></div>
+                                </div>
+                            </div>
+                            <div class="stage-row">
+                                <div class="node-card pending" id="node-CompileKernelModule" onclick="selectStage('CompileKernelModule')">
+                                    <div class="node-name">Compile Driver</div>
+                                    <span class="node-status-label" id="status-CompileKernelModule">Pending</span>
+                                    <span class="node-duration" id="duration-CompileKernelModule"></span>
+                                    <div class="node-meta" id="meta-CompileKernelModule" style="display: none;"></div>
+                                </div>
+                                <div class="node-card pending" id="node-CompileSDK" onclick="selectStage('CompileSDK')">
+                                    <div class="node-name">Compile SDK</div>
+                                    <span class="node-status-label" id="status-CompileSDK">Pending</span>
+                                    <span class="node-duration" id="duration-CompileSDK"></span>
+                                    <div class="node-meta" id="meta-CompileSDK" style="display: none;"></div>
+                                </div>
+                                <div class="node-card pending" id="node-CompileDaemon" onclick="selectStage('CompileDaemon')">
+                                    <div class="node-name">Compile Daemon</div>
+                                    <span class="node-status-label" id="status-CompileDaemon">Pending</span>
+                                    <span class="node-duration" id="duration-CompileDaemon"></span>
+                                    <div class="node-meta" id="meta-CompileDaemon" style="display: none;"></div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="node-card pending" id="node-CompileBusybox" onclick="selectStage('CompileBusybox')">
-                            <div class="node-name">Compile BusyBox</div>
-                            <span class="node-status-label" id="status-CompileBusybox">Pending</span>
-                            <span class="node-duration" id="duration-CompileBusybox"></span>
-                        </div>
-                        <div class="node-card pending" id="node-CompileS6" onclick="selectStage('CompileS6')">
-                            <div class="node-name">Compile s6</div>
-                            <span class="node-status-label" id="status-CompileS6">Pending</span>
-                            <span class="node-duration" id="duration-CompileS6"></span>
-                        </div>
-                    </div>
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-CompileKernelModule" onclick="selectStage('CompileKernelModule')">
-                            <div class="node-name">Compile Driver</div>
-                            <span class="node-status-label" id="status-CompileKernelModule">Pending</span>
-                            <span class="node-duration" id="duration-CompileKernelModule"></span>
-                        </div>
-                        <div class="node-card pending" id="node-CompileSDK" onclick="selectStage('CompileSDK')">
-                            <div class="node-name">Compile SDK</div>
-                            <span class="node-status-label" id="status-CompileSDK">Pending</span>
-                            <span class="node-duration" id="duration-CompileSDK"></span>
-                        </div>
-                        <div class="node-card pending" id="node-CompileDaemon" onclick="selectStage('CompileDaemon')">
-                            <div class="node-name">Compile Daemon</div>
-                            <span class="node-status-label" id="status-CompileDaemon">Pending</span>
-                            <span class="node-duration" id="duration-CompileDaemon"></span>
-                        </div>
-                    </div>
 
-                    <!-- Level 5 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-AssembleRootfs" onclick="selectStage('AssembleRootfs')">
-                            <div class="node-name">Assemble RootFS</div>
-                            <span class="node-status-label" id="status-AssembleRootfs">Pending</span>
-                            <span class="node-duration" id="duration-AssembleRootfs"></span>
+                        <!-- Level 5 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-AssembleRootfs" onclick="selectStage('AssembleRootfs')">
+                                <div class="node-name">Assemble RootFS</div>
+                                <span class="node-status-label" id="status-AssembleRootfs">Pending</span>
+                                <span class="node-duration" id="duration-AssembleRootfs"></span>
+                                <div class="node-meta" id="meta-AssembleRootfs" style="display: none;"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Level 5.5 (New stage) -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-CopyConfigurationSetup" onclick="selectStage('CopyConfigurationSetup')">
-                            <div class="node-name">Copy Setup Files</div>
-                            <span class="node-status-label" id="status-CopyConfigurationSetup">Pending</span>
-                            <span class="node-duration" id="duration-CopyConfigurationSetup"></span>
+                        <!-- Level 5.5 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-CopyConfigurationSetup" onclick="selectStage('CopyConfigurationSetup')">
+                                <div class="node-name">Copy Setup Files</div>
+                                <span class="node-status-label" id="status-CopyConfigurationSetup">Pending</span>
+                                <span class="node-duration" id="duration-CopyConfigurationSetup"></span>
+                                <div class="node-meta" id="meta-CopyConfigurationSetup" style="display: none;"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Level 6 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-PackageBtrfsImage" onclick="selectStage('PackageBtrfsImage')">
-                            <div class="node-name">Btrfs Rootfs</div>
-                            <span class="node-status-label" id="status-PackageBtrfsImage">Pending</span>
-                            <span class="node-duration" id="duration-PackageBtrfsImage"></span>
+                        <!-- Level 6 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-PackageBtrfsImage" onclick="selectStage('PackageBtrfsImage')">
+                                <div class="node-name">Btrfs Rootfs</div>
+                                <span class="node-status-label" id="status-PackageBtrfsImage">Pending</span>
+                                <span class="node-duration" id="duration-PackageBtrfsImage"></span>
+                                <div class="node-meta" id="meta-PackageBtrfsImage" style="display: none;"></div>
+                            </div>
+                            <div class="node-card pending" id="node-PackageESPImage" onclick="selectStage('PackageESPImage')">
+                                <div class="node-name">ESP Boot</div>
+                                <span class="node-status-label" id="status-PackageESPImage">Pending</span>
+                                <span class="node-duration" id="duration-PackageESPImage"></span>
+                                <div class="node-meta" id="meta-PackageESPImage" style="display: none;"></div>
+                            </div>
                         </div>
-                        <div class="node-card pending" id="node-PackageESPImage" onclick="selectStage('PackageESPImage')">
-                            <div class="node-name">ESP Boot</div>
-                            <span class="node-status-label" id="status-PackageESPImage">Pending</span>
-                            <span class="node-duration" id="duration-PackageESPImage"></span>
-                        </div>
-                    </div>
 
-                    <!-- Level 7 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-AssembleGPTImage" onclick="selectStage('AssembleGPTImage')">
-                            <div class="node-name">Assemble GPT UEFI</div>
-                            <span class="node-status-label" id="status-AssembleGPTImage">Pending</span>
-                            <span class="node-duration" id="duration-AssembleGPTImage"></span>
+                        <!-- Level 7 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-AssembleGPTImage" onclick="selectStage('AssembleGPTImage')">
+                                <div class="node-name">Assemble GPT UEFI</div>
+                                <span class="node-status-label" id="status-AssembleGPTImage">Pending</span>
+                                <span class="node-duration" id="duration-AssembleGPTImage"></span>
+                                <div class="node-meta" id="meta-AssembleGPTImage" style="display: none;"></div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- Level 8 -->
-                    <div class="stage-row">
-                        <div class="node-card pending" id="node-ShipImage" onclick="selectStage('ShipImage')">
-                            <div class="node-name">Ship Image</div>
-                            <span class="node-status-label" id="status-ShipImage">Pending</span>
-                            <span class="node-duration" id="duration-ShipImage"></span>
+                        <!-- Level 8 -->
+                        <div class="stage-row">
+                            <div class="node-card pending" id="node-ShipImage" onclick="selectStage('ShipImage')">
+                                <div class="node-name">Ship Image</div>
+                                <span class="node-status-label" id="status-ShipImage">Pending</span>
+                                <span class="node-duration" id="duration-ShipImage"></span>
+                                <div class="node-meta" id="meta-ShipImage" style="display: none;"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1093,7 +1255,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                         <div style="display: flex; flex-direction: column; gap: 0.25rem;">
                             <label for="qemu-display-select" style="font-weight: 500; font-size: 0.75rem; color: #adb5bd; text-align: left; margin: 0;">Display Mode:</label>
                             <select id="qemu-display-select" onchange="updateQemuSettings()" style="background: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid var(--border-color); padding: 0.35rem 0.5rem; border-radius: 4px; font-family: inherit; font-size: 0.8rem; outline: none; cursor: pointer; width: 100%;">
-                                <option value="serial" style="background: #1e1e1e; color: #fff;">Serial (Headless)</option>
                                 <option value="graphics" style="background: #1e1e1e; color: #fff;">VGA Graphics (Render)</option>
                             </select>
                         </div>
@@ -1125,6 +1286,20 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div id="qemu-input-container" style="display: flex; margin-top: 0.75rem; border: 3px solid var(--border-color); display: none;">
                     <span style="font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; font-weight: bold; background: #1a1a1a; color: white; padding: 0.45rem 0.75rem;">guest$</span>
                     <input type="text" id="qemu-input-field" placeholder="Type command to guest shell and press Enter..." style="flex: 1; border: none; padding: 0.45rem 0.75rem; font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; outline: none; background: #faf9f6;" onkeydown="sendQemuInput(event)" />
+                </div>
+
+                <div id="qemu-keyboard-controls" style="display: none; flex-wrap: wrap; gap: 0.25rem; margin-top: 0.5rem;">
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="copyQemuLogs()">Copy Logs</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="pasteToQemu()">Paste</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\t')">Tab</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[D')">←</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[A')">↑</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[B')">↓</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[C')">→</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[1;2D')">Shift+←</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[1;2A')">Shift+↑</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[1;2B')">Shift+↓</button>
+                    <button class="control-btn" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="sendQemuKey('\\x1b[1;2C')">Shift+→</button>
                 </div>
             </div>
         </div>
@@ -1205,16 +1380,34 @@ HTML_CONTENT = """<!DOCTYPE html>
 
         // PasswordWall / Authentication Flow
         let pendingAction = null;
+        let tempPassword = "";
         
         function getSavedPassword() {
-            return localStorage.getItem("portal_password") || "";
+            const savedTime = localStorage.getItem("portal_password_time");
+            if (savedTime) {
+                const elapsed = Date.now() - parseInt(savedTime, 10);
+                if (elapsed > 10 * 60 * 1000) {
+                    localStorage.removeItem("portal_password");
+                    localStorage.removeItem("portal_password_time");
+                    tempPassword = "";
+                    return "";
+                }
+            }
+            const pw = tempPassword || localStorage.getItem("portal_password") || "";
+            if (pw) {
+                localStorage.setItem("portal_password_time", Date.now().toString());
+            }
+            return pw;
         }
         
         function setSavedPassword(pw, remember) {
+            localStorage.setItem("portal_password_time", Date.now().toString());
             if (remember) {
                 localStorage.setItem("portal_password", pw);
+                tempPassword = "";
             } else {
                 localStorage.removeItem("portal_password");
+                tempPassword = pw;
             }
         }
         
@@ -1245,7 +1438,16 @@ HTML_CONTENT = """<!DOCTYPE html>
                     setSavedPassword(pw, remember);
                     const cb = pendingAction;
                     hideAuthModal();
-                    if (cb) cb(pw);
+                    if (cb) {
+                        cb(pw, (err) => {
+                            if (err && err.status === 401) {
+                                localStorage.removeItem("portal_password");
+                                localStorage.removeItem("portal_password_time");
+                                tempPassword = "";
+                                showAuthModal(cb);
+                            }
+                        });
+                    }
                 } else {
                     document.getElementById("auth-error-msg").textContent = "Invalid password. Try again.";
                 }
@@ -1261,6 +1463,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                 actionFn(savedPw, (err) => {
                     if (err && err.status === 401) {
                         localStorage.removeItem("portal_password");
+                        localStorage.removeItem("portal_password_time");
+                        tempPassword = "";
                         showAuthModal(actionFn);
                     }
                 });
@@ -1418,30 +1622,61 @@ HTML_CONTENT = """<!DOCTYPE html>
             });
         }
 
-        function sendQemuInput(e) {
-            if (e.key === "Enter") {
-                const inputField = document.getElementById("qemu-input-field");
-                const val = inputField.value + "\\n";
-                inputField.value = "";
-                
-                const pw = getSavedPassword();
-                if (!pw) {
-                    alert("Not authenticated. Please click Start QEMU to authenticate.");
-                    return;
-                }
-                
+        function sendQemuString(str) {
+            performProtectedAction((pw, onDone) => {
                 fetch("/api/qemu/input", {
                     method: "POST",
                     headers: { 
                         "X-Portal-Password": pw,
                         "Content-Type": "application/json"
                     },
-                    body: JSON.stringify({ input: val })
+                    body: JSON.stringify({ input: str })
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    onDone();
                 })
                 .catch(err => {
                     console.error("Error sending input: " + err);
+                    onDone();
                 });
+            });
+        }
+
+        function sendQemuKey(keyStr) {
+            sendQemuString(keyStr);
+        }
+
+        function sendQemuInput(e) {
+            if (e.key === "Enter") {
+                const inputField = document.getElementById("qemu-input-field");
+                const val = inputField.value + "\\n";
+                inputField.value = "";
+                sendQemuString(val);
             }
+        }
+
+        function copyQemuLogs() {
+            const term = document.getElementById("qemu-log-terminal");
+            const text = term.innerText || term.textContent || "";
+            navigator.clipboard.writeText(text).then(() => {
+                alert("Logs copied to clipboard!");
+            }).catch(err => {
+                alert("Failed to copy logs: " + err);
+            });
+        }
+
+        function pasteToQemu() {
+            navigator.clipboard.readText().then(text => {
+                if (text) {
+                    sendQemuString(text);
+                }
+            }).catch(err => {
+                const text = prompt("Paste text to QEMU guest console:");
+                if (text) {
+                    sendQemuString(text);
+                }
+            });
         }
 
         function ansiToHtml(text) {
@@ -1450,7 +1685,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;");
 
-            const ansiRegex = /\\u001b\\[([0-9;]*)m/g;
+            const ansiRegex = /\\x1b\\[([0-9;]*)m/g;
             let openSpans = 0;
             
             let html = escaped.replace(ansiRegex, (match, p1) => {
@@ -1562,6 +1797,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             const lines = accumulatedQemuLogs.split("\\n");
             let html = "";
             lines.forEach((line, idx) => {
+                if (line.includes("\\r")) {
+                    const parts = line.split("\\r");
+                    line = parts[parts.length - 1];
+                }
                 if (idx === lines.length - 1) {
                     html += parseLogLine(line);
                 } else {
@@ -1572,6 +1811,243 @@ HTML_CONTENT = """<!DOCTYPE html>
             term.scrollTop = term.scrollHeight;
         }
 
+        // SVG Curve connections drawing
+        function drawConnections() {
+            const svg = document.getElementById("dag-svg");
+            if (!svg) return;
+            svg.innerHTML = "";
+            
+            const container = document.getElementById("dag-container");
+            const containerRect = container.getBoundingClientRect();
+            
+            const connections = [
+                { from: "DownloadTarballs", to: "CheckEarlyExit" },
+                { from: "CheckEarlyExit", to: "ExtractTarballs" },
+                { from: "ExtractTarballs", to: "CompileKernel" },
+                { from: "ExtractTarballs", to: "CompileBusybox" },
+                { from: "ExtractTarballs", to: "CompileS6" },
+                { from: "CompileKernel", to: "CompileKernelModule" },
+                { from: "CompileBusybox", to: "CompileSDK" },
+                { from: "CompileS6", to: "CompileDaemon" },
+                { from: "CompileKernelModule", to: "AssembleRootfs" },
+                { from: "CompileSDK", to: "AssembleRootfs" },
+                { from: "CompileDaemon", to: "AssembleRootfs" },
+                { from: "AssembleRootfs", to: "CopyConfigurationSetup" },
+                { from: "CopyConfigurationSetup", to: "PackageBtrfsImage" },
+                { from: "CopyConfigurationSetup", to: "PackageESPImage" },
+                { from: "PackageBtrfsImage", to: "AssembleGPTImage" },
+                { from: "PackageESPImage", to: "AssembleGPTImage" },
+                { from: "AssembleGPTImage", to: "ShipImage" }
+            ];
+            
+            const connectionAnchors = {
+                "DownloadTarballs->CheckEarlyExit": { from: "right", to: "left" },
+                "CheckEarlyExit->ExtractTarballs": { from: "right", to: "left" },
+                "ExtractTarballs->CompileKernel": { from: "left", to: "left" },
+                "ExtractTarballs->CompileBusybox": { from: "bottom", to: "left" },
+                "ExtractTarballs->CompileS6": { from: "right", to: "left" },
+                "CompileKernel->CompileKernelModule": { from: "right", to: "left" },
+                "CompileBusybox->CompileSDK": { from: "right", to: "left" },
+                "CompileS6->CompileDaemon": { from: "right", to: "left" },
+                "CompileKernelModule->AssembleRootfs": { from: "right", to: "left" },
+                "CompileSDK->AssembleRootfs": { from: "bottom", to: "top" },
+                "CompileDaemon->AssembleRootfs": { from: "left", to: "right" },
+                "AssembleRootfs->CopyConfigurationSetup": { from: "right", to: "left" },
+                "CopyConfigurationSetup->PackageBtrfsImage": { from: "left", to: "left" },
+                "CopyConfigurationSetup->PackageESPImage": { from: "right", to: "left" },
+                "PackageBtrfsImage->AssembleGPTImage": { from: "right", to: "left" },
+                "PackageESPImage->AssembleGPTImage": { from: "left", to: "right" },
+                "AssembleGPTImage->ShipImage": { from: "right", to: "left" }
+            };
+
+            function getAnchorCoords(rect, anchor) {
+                let x, y;
+                if (anchor === "left") {
+                    x = rect.left - containerRect.left;
+                    y = rect.top + rect.height / 2 - containerRect.top;
+                } else if (anchor === "right") {
+                    x = rect.right - containerRect.left;
+                    y = rect.top + rect.height / 2 - containerRect.top;
+                } else if (anchor === "top") {
+                    x = rect.left + rect.width / 2 - containerRect.left;
+                    y = rect.top - containerRect.top;
+                } else { // "bottom"
+                    x = rect.left + rect.width / 2 - containerRect.left;
+                    y = rect.bottom - containerRect.top;
+                }
+                return { x, y };
+            }
+
+            connections.forEach(conn => {
+                const fromEl = document.getElementById("node-" + conn.from);
+                const toEl = document.getElementById("node-" + conn.to);
+                if (!fromEl || !toEl) return;
+                
+                const fromRect = fromEl.getBoundingClientRect();
+                const toRect = toEl.getBoundingClientRect();
+                
+                const key = conn.from + "->" + conn.to;
+                const anchors = connectionAnchors[key] || { from: "bottom", to: "top" };
+                
+                const pt1 = getAnchorCoords(fromRect, anchors.from);
+                const pt2 = getAnchorCoords(toRect, anchors.to);
+                
+                const x1 = pt1.x;
+                const y1 = pt1.y;
+                const x2 = pt2.x;
+                const y2 = pt2.y;
+                
+                const dx = Math.abs(x2 - x1);
+                const dy = Math.abs(y2 - y1);
+                const len = Math.max(dx * 0.4, dy * 0.4, 40);
+                
+                let cp1x = x1;
+                let cp1y = y1;
+                if (anchors.from === "right") cp1x += len;
+                else if (anchors.from === "left") cp1x -= len;
+                else if (anchors.from === "top") cp1y -= len;
+                else cp1y += len; // "bottom"
+                
+                let cp2x = x2;
+                let cp2y = y2;
+                if (anchors.to === "right") cp2x += len;
+                else if (anchors.to === "left") cp2x -= len;
+                else if (anchors.to === "top") cp2y -= len;
+                else cp2y += len; // "bottom"
+                
+                const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+                
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", d);
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                
+                let strokeColor = "var(--border-color)";
+                if (fromEl.classList.contains("success") || fromEl.classList.contains("skipped")) {
+                    strokeColor = "#37b24d";
+                } else if (fromEl.classList.contains("running")) {
+                    strokeColor = "#fcc419";
+                    path.setAttribute("stroke-dasharray", "8, 6");
+                    path.style.animation = "dash 1s linear infinite";
+                } else if (fromEl.classList.contains("failed")) {
+                    strokeColor = "#f03e3e";
+                }
+                
+                path.setAttribute("stroke", strokeColor);
+                svg.appendChild(path);
+            });
+            
+            // Top connector line: starts at top-center of container, goes to left edge of DownloadTarballs
+            const firstCard = document.getElementById("node-DownloadTarballs");
+            if (firstCard) {
+                const firstRect = firstCard.getBoundingClientRect();
+                const x1 = containerRect.width / 2;
+                const y1 = 0;
+                const x2 = firstRect.left - containerRect.left;
+                const y2 = (firstRect.top + firstRect.height / 2) - containerRect.top;
+                
+                const dx = Math.abs(x2 - x1);
+                const dy = Math.abs(y2 - y1);
+                const len = Math.max(dx * 0.4, dy * 0.4, 40);
+                
+                const cp1x = x1;
+                const cp1y = y1 + len;
+                const cp2x = x2 - len;
+                const cp2y = y2;
+                
+                const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", d);
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                let strokeColor = "var(--border-color)";
+                if (firstCard.classList.contains("success") || firstCard.classList.contains("skipped")) {
+                    strokeColor = "#37b24d";
+                } else if (firstCard.classList.contains("running")) {
+                    strokeColor = "#fcc419";
+                    path.setAttribute("stroke-dasharray", "8, 6");
+                    path.style.animation = "dash 1s linear infinite";
+                }
+                path.setAttribute("stroke", strokeColor);
+                svg.appendChild(path);
+            }
+            
+            // Bottom connector line
+            const lastCard = document.getElementById("node-ShipImage");
+            if (lastCard) {
+                const lastRect = lastCard.getBoundingClientRect();
+                const x1 = (lastRect.left + lastRect.width / 2) - containerRect.left;
+                const y1 = lastRect.bottom - containerRect.top;
+                const x2 = containerRect.width / 2;
+                const y2 = containerRect.height;
+                
+                const dx = Math.abs(x2 - x1);
+                const dy = Math.abs(y2 - y1);
+                const len = Math.max(dx * 0.4, dy * 0.4, 40);
+                
+                const cp1x = x1;
+                const cp1y = y1 + len;
+                const cp2x = x2;
+                const cp2y = y2 - len;
+                
+                const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", d);
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                let strokeColor = "var(--border-color)";
+                if (lastCard.classList.contains("success") || lastCard.classList.contains("skipped")) {
+                    strokeColor = "#37b24d";
+                } else if (lastCard.classList.contains("running")) {
+                    strokeColor = "#fcc419";
+                    path.setAttribute("stroke-dasharray", "8, 6");
+                    path.style.animation = "dash 1s linear infinite";
+                }
+                path.setAttribute("stroke", strokeColor);
+                svg.appendChild(path);
+            }
+        }
+
+        function updateFacilityTimer() {
+            const facilityStages = ['CompileKernel', 'CompileBusybox', 'CompileS6', 'CompileKernelModule', 'CompileSDK', 'CompileDaemon'];
+            let isAnyRunning = false;
+            
+            facilityStages.forEach(name => {
+                const el = document.getElementById("node-" + name);
+                if (el && el.classList.contains("running")) {
+                    isAnyRunning = true;
+                }
+            });
+            
+            if (isAnyRunning) {
+                if (!window.facilityStartTime) {
+                    window.facilityStartTime = Date.now();
+                }
+                const elapsedSec = (Date.now() - window.facilityStartTime) / 1000;
+                const mins = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+                const secs = Math.floor(elapsedSec % 60).toString().padStart(2, '0');
+                document.getElementById("facility-timer").textContent = `${mins}:${secs}`;
+            } else {
+                if (window.facilityStartTime) {
+                    const rootfsEl = document.getElementById("node-AssembleRootfs");
+                    const isPast = rootfsEl && (rootfsEl.classList.contains("running") || rootfsEl.classList.contains("success") || rootfsEl.classList.contains("failed"));
+                    if (!isPast) {
+                        const elapsedSec = (Date.now() - window.facilityStartTime) / 1000;
+                        const mins = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
+                        const secs = Math.floor(elapsedSec % 60).toString().padStart(2, '0');
+                        document.getElementById("facility-timer").textContent = `${mins}:${secs}`;
+                    }
+                } else {
+                    document.getElementById("facility-timer").textContent = "00:00";
+                }
+            }
+        }
+
+        window.addEventListener("load", () => {
+            setTimeout(drawConnections, 50);
+        });
+        window.addEventListener("resize", drawConnections);
+
         // SSE Connection
         const evtSource = new EventSource("/events");
 
@@ -1581,6 +2057,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             let activeCount = 0;
             let totalCount = Object.keys(states).length;
             let successCount = 0;
+            
+            if (payload.stage_builds) {
+                window.stageBuilds = payload.stage_builds;
+            }
             
             for (const [name, data] of Object.entries(states)) {
                 updateNode(name, data.status, data.details, data.elapsed);
@@ -1611,12 +2091,14 @@ HTML_CONTENT = """<!DOCTYPE html>
                 document.getElementById("qemu-start-btn").disabled = true;
                 document.getElementById("qemu-stop-btn").disabled = false;
                 document.getElementById("qemu-input-container").style.display = "flex";
+                document.getElementById("qemu-keyboard-controls").style.display = "flex";
             } else {
                 document.getElementById("qemu-status-text").textContent = "STOPPED";
                 document.getElementById("qemu-status-text").style.color = "#adb5bd";
                 document.getElementById("qemu-start-btn").disabled = false;
                 document.getElementById("qemu-stop-btn").disabled = true;
                 document.getElementById("qemu-input-container").style.display = "none";
+                document.getElementById("qemu-keyboard-controls").style.display = "none";
             }
 
             // Sync QEMU display and pull rate dropdown values
@@ -1639,11 +2121,47 @@ HTML_CONTENT = """<!DOCTYPE html>
                 document.getElementById("info-build-uuid").textContent = "N/A";
             }
             
+            // Sync Software Versions
+            if (payload.versions) {
+                document.getElementById("version-kernel-module").textContent = payload.versions.kernel_module;
+                document.getElementById("version-sdk").textContent = payload.versions.sdk;
+                document.getElementById("version-daemon").textContent = payload.versions.daemon;
+                document.getElementById("version-userspace").textContent = payload.versions.userspace;
+            }
+            
+            // Sync Build Stats
+            if (payload.stats) {
+                document.getElementById("info-total-builds").textContent = payload.stats.total_builds || 0;
+                document.getElementById("info-successful-builds").textContent = payload.stats.successful_builds || 0;
+                document.getElementById("info-failed-builds").textContent = payload.stats.failed_builds || 0;
+            }
+
+            // Mark skippable stages
+            if (payload.allowed_failures) {
+                payload.allowed_failures.forEach(name => {
+                    const el = document.getElementById("node-" + name);
+                    if (el && !el.querySelector(".optional-badge")) {
+                        const badge = document.createElement("span");
+                        badge.className = "optional-badge";
+                        badge.textContent = " (optional)";
+                        badge.style.fontSize = "0.7rem";
+                        badge.style.color = "#868e96";
+                        badge.style.fontStyle = "italic";
+                        const nameEl = el.querySelector(".node-name");
+                        if (nameEl) nameEl.appendChild(badge);
+                    }
+                });
+            }
+            
             updateBuildProgress(successCount, totalCount);
+            setTimeout(drawConnections, 50);
         });
         
         evtSource.addEventListener("update", (e) => {
             const data = JSON.parse(e.data);
+            if (data.stage_builds) {
+                window.stageBuilds = data.stage_builds;
+            }
             updateNode(data.name, data.status, data.details, data.elapsed);
             
             if (data.status === "Running") {
@@ -1660,6 +2178,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 }
             });
             updateBuildProgress(successCount, cards.length);
+            setTimeout(drawConnections, 50);
         });
 
         evtSource.addEventListener("qemu_started", (e) => {
@@ -1669,8 +2188,10 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById("qemu-start-btn").textContent = "START QEMU";
             document.getElementById("qemu-stop-btn").disabled = false;
             document.getElementById("qemu-input-container").style.display = "flex";
+            document.getElementById("qemu-keyboard-controls").style.display = "flex";
             document.getElementById("qemu-log-terminal").innerHTML = '<div style="color: #37b24d; font-weight: bold;">[+] Connecting to serial console...</div>';
             document.getElementById("qemu-input-field").focus();
+            setTimeout(drawConnections, 50);
         });
 
         evtSource.addEventListener("qemu_stopped", (e) => {
@@ -1679,6 +2200,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             document.getElementById("qemu-start-btn").disabled = false;
             document.getElementById("qemu-stop-btn").disabled = true;
             document.getElementById("qemu-input-container").style.display = "none";
+            document.getElementById("qemu-keyboard-controls").style.display = "none";
+            setTimeout(drawConnections, 50);
         });
 
         evtSource.addEventListener("qemu_log", (e) => {
@@ -1826,6 +2349,16 @@ def update_node_status(name, status, details="", elapsed=None):
     
     node_states[name] = {"status": status, "details": details, "elapsed": elapsed}
     
+    ws_dir = global_context.workspace_dir if global_context else "."
+    if status in ("Success", "Failed"):
+        update_stage_build_info(ws_dir, name, status, compiled=True)
+    elif status == "Skipped":
+        update_stage_build_info(ws_dir, name, "Skipped", compiled=False)
+    else:
+        update_stage_build_info(ws_dir, name, status, compiled=False)
+        
+    stage_builds = load_stage_builds(ws_dir)
+    
     # If no_view is enabled, do not attempt to stream events
     if no_view_flag:
         return
@@ -1837,7 +2370,8 @@ def update_node_status(name, status, details="", elapsed=None):
         "elapsed": elapsed,
         "logs": logs,
         "build_start_time": build_start_time,
-        "server_current_time": time.time()
+        "server_current_time": time.time(),
+        "stage_builds": stage_builds
     }
     msg = f"event: update\ndata: {json.dumps(payload)}\n\n"
     for q in list(clients):
@@ -2206,6 +2740,30 @@ def get_state_payload():
     elif build_completed:
         elapsed_time = total_build_time
         
+    ws_dir = global_context.workspace_dir if global_context else "."
+    stats = load_build_stats(ws_dir)
+    stage_builds = load_stage_builds(ws_dir)
+    
+    # Extract version details from config
+    versions = {}
+    allowed_failures = []
+    if global_context and hasattr(global_context, 'config'):
+        versions = {
+            "kernel_module": global_context.config.get("KERNEL_MODULE_VERSION", "0.1"),
+            "sdk": global_context.config.get("SDK_VERSION", "0.1.0"),
+            "daemon": global_context.config.get("DAEMON_VERSION", "0.1.0"),
+            "userspace": global_context.config.get("USERSPACE_VERSION", "0.1.0")
+        }
+        allowed_failures_raw = global_context.config.get("ALLOWED_FAILURES", "")
+        allowed_failures = [x.strip() for x in allowed_failures_raw.split(",") if x.strip()]
+    else:
+        versions = {
+            "kernel_module": "0.1",
+            "sdk": "0.1.0",
+            "daemon": "0.1.0",
+            "userspace": "0.1.0"
+        }
+        
     return {
         "nodes": node_states,
         "build_start_time": build_start_time,
@@ -2217,7 +2775,11 @@ def get_state_payload():
         "qemu_pull_rate": qemu_pull_rate,
         "elapsed_time": elapsed_time,
         "build_number": build_number,
-        "build_uuid": build_uuid
+        "build_uuid": build_uuid,
+        "stats": stats,
+        "stage_builds": stage_builds,
+        "versions": versions,
+        "allowed_failures": allowed_failures
     }
 
 def broadcast_status(context):
@@ -2339,13 +2901,9 @@ def start_qemu_guest(workspace_dir):
     if qemu_display_mode == "serial":
         qemu_cmd.extend(["-display", "none", "-serial", "stdio"])
     else:
-        # Graphics display mode
-        if in_docker:
-            qemu_cmd.extend(["-display", "vnc=0.0.0.0:0", "-vga", "std"])
-            Logger.log_info("Running inside Docker: using VNC display backend for VGA graphics (0.0.0.0:0 / port 5900)")
-        else:
-            qemu_cmd.extend(["-vga", "std"])
-            Logger.log_info("Running on host: using default display backend for VGA graphics")
+        # Graphics display mode (headless but VGA emulator enabled for guest OS)
+        qemu_cmd.extend(["-display", "none", "-vga", "std", "-serial", "stdio"])
+        Logger.log_info("Using headless display backend for VGA graphics (standard emulation)")
         
     if ovmf_path:
         qemu_cmd.extend(["-bios", ovmf_path])
@@ -2632,8 +3190,9 @@ class Pipeline:
                     final_status_text = "Failed"
                     build_completed = True
                     send_total_report(total_build_time, "Failed")
+                    update_build_stats(context.workspace_dir, "Failed")
                     return
-
+ 
         total_time = time.time() - overall_start_t
         Logger.log_section("          Build Completion Report          ")
         for node in self.execution_order:
@@ -2643,11 +3202,11 @@ class Pipeline:
             Logger.log_plain(f"  - {node.name:<25}: {state.get('status'):<10} ({duration_str})")
         Logger.log_plain(f"\n  [✔] Total Build Duration: {total_time:.2f}s")
         Logger.log_section("")
-
+ 
         total_build_time = total_time
         final_status_text = "Complete"
         build_completed = True
-
+ 
         # Save all current hashes to hashes.json
         hashes_file = os.path.join(context.nochanges_dir, "hashes.json")
         try:
@@ -2657,12 +3216,13 @@ class Pipeline:
             Logger.log_info("Saved current workspace hashes to hashes.json")
         except Exception as e:
             Logger.log_warn(f"Failed to save hashes to hashes.json: {e}")
-
+ 
         send_total_report(total_time, "Complete")
-
+ 
         global build_number, build_uuid
         # Increment build number and archive if not skipped
         if not getattr(context, 'skip_remaining', False):
+            update_build_stats(context.workspace_dir, "Complete")
             try:
                 archive_dir = os.path.join(context.workspace_dir, ".archive")
                 os.makedirs(archive_dir, exist_ok=True)

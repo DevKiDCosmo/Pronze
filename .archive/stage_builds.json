@@ -1,0 +1,92 @@
+{
+  "DownloadTarballs": {
+    "build_number": 8,
+    "uuid": "25a24910-d005-4965-a3ea-98b1b36d287a",
+    "status": "Success",
+    "timestamp": 1780158429.6912975
+  },
+  "CheckEarlyExit": {
+    "build_number": 16,
+    "uuid": "dc294b65-6d76-47e1-83f8-b8e7b9e7ab1c",
+    "status": "Success",
+    "timestamp": 1780158429.9685986
+  },
+  "ExtractTarballs": {
+    "build_number": 7,
+    "uuid": "fd05aeba-aaae-48f3-8206-71ca4609515c",
+    "status": "Success",
+    "timestamp": 1780158429.9710321
+  },
+  "CompileKernel": {
+    "build_number": 2,
+    "uuid": "e90cea01-9b76-4214-a444-932ddd17fd9e",
+    "status": "Skipped",
+    "timestamp": 1780158431.3051293
+  },
+  "CompileBusybox": {
+    "build_number": 2,
+    "uuid": "664e5ab6-f92f-4ca8-84b4-c79f46ba13ed",
+    "status": "Skipped",
+    "timestamp": 1780158431.6312542
+  },
+  "CompileS6": {
+    "build_number": 2,
+    "uuid": "45d591bf-4218-4de4-a76a-0e28d2bd093f",
+    "status": "Skipped",
+    "timestamp": 1780158432.1265988
+  },
+  "CompileKernelModule": {
+    "build_number": 2,
+    "uuid": "f6fd4bb5-d3f0-4e28-9406-970f00a71c76",
+    "status": "Skipped",
+    "timestamp": 1780158432.1344614
+  },
+  "CompileSDK": {
+    "build_number": 6,
+    "uuid": "8086817d-ef30-479a-99cd-ea4f1df81a65",
+    "status": "Skipped",
+    "timestamp": 1780158432.3206096
+  },
+  "CompileDaemon": {
+    "build_number": 4,
+    "uuid": "90b706e8-97a2-417f-9edd-9afbc2263d26",
+    "status": "Failed",
+    "timestamp": 1780158440.6581962
+  },
+  "AssembleRootfs": {
+    "build_number": 4,
+    "uuid": "5c445f2e-ec77-42f1-b972-96730fe95b3a",
+    "status": "Success",
+    "timestamp": 1780158440.9062586
+  },
+  "CopyConfigurationSetup": {
+    "build_number": 4,
+    "uuid": "31659142-39bc-4541-ab55-f5d030f475ec",
+    "status": "Success",
+    "timestamp": 1780158440.9142542
+  },
+  "PackageBtrfsImage": {
+    "build_number": 4,
+    "uuid": "bb63167f-445e-4376-914f-3b32b7f88396",
+    "status": "Success",
+    "timestamp": 1780158443.042312
+  },
+  "PackageESPImage": {
+    "build_number": 4,
+    "uuid": "2e21f010-7a7f-45fa-9583-e4c83a05707e",
+    "status": "Success",
+    "timestamp": 1780158444.1018283
+  },
+  "AssembleGPTImage": {
+    "build_number": 4,
+    "uuid": "9a1ae314-7572-49ef-ab4d-efa9cf7c8d74",
+    "status": "Success",
+    "timestamp": 1780158446.730606
+  },
+  "ShipImage": {
+    "build_number": 4,
+    "uuid": "a3cb35d9-dc5f-4ffb-93f5-99a5541dfd5d",
+    "status": "Success",
+    "timestamp": 1780158450.1841838
+  }
+}
