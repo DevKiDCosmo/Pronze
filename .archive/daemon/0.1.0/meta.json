@@ -1,11 +1,11 @@
 {
-  "uuid": "ba209e2e-0124-4339-8245-28670e75c112",
-  "build_number": 10,
-  "target": "distro",
+  "uuid": "c5d79b65-630c-4f42-9ed4-d0ca415f898c",
+  "build_number": 6,
+  "module": "daemon",
   "version": "0.1.0",
-  "timestamp": "2026-05-30T17:04:22.451677Z",
+  "timestamp": "2026-05-30T17:04:21.366229Z",
   "files": [
-    "pronzeos.img"
+    "pronzed"
   ],
   "versions": {
     "kernel_module": "0.1",

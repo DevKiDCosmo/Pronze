@@ -1,0 +1,21 @@
+{
+  "uuid": "2bdf462a-e993-4fb9-bf91-8baa89ef4ced",
+  "build_number": 8,
+  "module": "sdk",
+  "version": "0.1.0",
+  "timestamp": "2026-05-30T17:04:21.362841Z",
+  "files": [
+    "libpronze.so",
+    "test_alloc",
+    "test_bounds",
+    "test_zig",
+    "test_rust"
+  ],
+  "versions": {
+    "kernel_module": "0.1",
+    "sdk": "0.1.0",
+    "framework": "Currently In Progress",
+    "daemon": "0.1.0",
+    "userspace": "0.1.0"
+  }
+}

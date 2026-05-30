@@ -1,0 +1,17 @@
+{
+  "uuid": "776cae52-ca34-4c91-8c08-8f6f2de13fa1",
+  "build_number": 3,
+  "module": "kernel_module",
+  "version": "0.1",
+  "timestamp": "2026-05-30T17:04:21.349565Z",
+  "files": [
+    "pronze.ko"
+  ],
+  "versions": {
+    "kernel_module": "0.1",
+    "sdk": "0.1.0",
+    "framework": "Currently In Progress",
+    "daemon": "0.1.0",
+    "userspace": "0.1.0"
+  }
+}

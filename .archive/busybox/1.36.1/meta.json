@@ -1,0 +1,17 @@
+{
+  "uuid": "59005a86-afbd-42ab-b50b-555694400f60",
+  "build_number": 3,
+  "module": "busybox",
+  "version": "1.36.1",
+  "timestamp": "2026-05-30T17:04:21.321862Z",
+  "files": [
+    "busybox_install.tar.gz"
+  ],
+  "versions": {
+    "kernel_module": "0.1",
+    "sdk": "0.1.0",
+    "framework": "Currently In Progress",
+    "daemon": "0.1.0",
+    "userspace": "0.1.0"
+  }
+}
