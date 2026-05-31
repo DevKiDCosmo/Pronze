@@ -1,9 +1,9 @@
 {
-  "uuid": "ba209e2e-0124-4339-8245-28670e75c112",
-  "build_number": 10,
+  "uuid": "f3236fcc-dbc6-4216-81ef-000fc5aa3208",
+  "build_number": 308,
   "target": "distro",
   "version": "0.1.0",
-  "timestamp": "2026-05-30T17:04:22.451677Z",
+  "timestamp": "2026-05-31T13:15:00.177142Z",
   "files": [
     "pronzeos.img"
   ],

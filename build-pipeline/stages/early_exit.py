@@ -17,6 +17,7 @@ class CheckEarlyExitStage(PipelineNode):
             current_hashes["test_dir"],
             current_hashes["profiles_dir"],
             current_hashes["build_pipeline_dir"],
+            current_hashes.get("config_setup_dir", ""),
             current_hashes["pipeline_conf"],
             current_hashes["linux_ver"],
             current_hashes["busybox_ver"],

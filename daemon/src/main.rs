@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         kernel_driver_active: driver_present,
         active_partition: "Partition_A".to_string(), // A/B Partition simulation
     }));
-    
+
     // Clean up old socket if it exists
     if Path::new(SOCKET_PATH).exists() {
         fs::remove_file(SOCKET_PATH)?;
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // println!("  - Allocation Failure Rate: {}%", s.current_profile.allocation_failure_rate);
             // println!("  - Guard Pages Enabled: {}", s.current_profile.guard_pages);
             // println!("  - Simulation Latency: {} ms", s.current_profile.latency_ms);
-            // println!("----------------------------------_");
+            // println!("-----------------------------------");
         }
     });
     

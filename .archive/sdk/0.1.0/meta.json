@@ -1,9 +1,9 @@
 {
-  "uuid": "2bdf462a-e993-4fb9-bf91-8baa89ef4ced",
-  "build_number": 8,
+  "uuid": "641dbd97-2ec5-4397-875f-6544e2b970a5",
+  "build_number": 12,
   "module": "sdk",
   "version": "0.1.0",
-  "timestamp": "2026-05-30T17:04:21.362841Z",
+  "timestamp": "2026-05-31T13:14:59.643700Z",
   "files": [
     "libpronze.so",
     "test_alloc",

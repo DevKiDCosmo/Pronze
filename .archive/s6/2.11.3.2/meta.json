@@ -1,9 +1,9 @@
 {
-  "uuid": "ad37bec6-94b8-46fe-b33d-b2fa359429fd",
-  "build_number": 3,
+  "uuid": "74146678-e4bd-44f6-9854-8f034a2abc2a",
+  "build_number": 5,
   "module": "s6",
   "version": "2.11.3.2",
-  "timestamp": "2026-05-30T17:04:21.347666Z",
+  "timestamp": "2026-05-31T13:14:59.635150Z",
   "files": [
     "s6_install.tar.gz"
   ],

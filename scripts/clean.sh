@@ -49,7 +49,7 @@ rm -f "$WORKSPACE_DIR"/test_zig.o
 
 # 5. Clean kernel module and compilation artifacts recursively
 echo "[+] Cleaning compilation and kernel module build artifacts recursively..."
-find "$WORKSPACE_DIR" -path "*/.git" -prune -o -type f \( \
+find "$WORKSPACE_DIR" \( -path "*/.git" -o -path "*/.archive" \) -prune -o -type f \( \
     -name "*.o" -o \
     -name "*.ko" -o \
     -name "*.mod" -o \
@@ -60,7 +60,7 @@ find "$WORKSPACE_DIR" -path "*/.git" -prune -o -type f \( \
     -name "Module.symvers" \
 \) -exec rm -f {} +
 
-find "$WORKSPACE_DIR" -path "*/.git" -prune -o -type d -name ".tmp_versions" -exec rm -rf {} +
+find "$WORKSPACE_DIR" \( -path "*/.git" -o -path "*/.archive" \) -prune -o -type d -name ".tmp_versions" -exec rm -rf {} +
 
 
 # 6. Clean host system logs or other temporary artifacts in workspace

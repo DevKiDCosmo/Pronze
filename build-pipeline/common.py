@@ -415,6 +415,7 @@ def compute_all_hashes(context):
         "test_dir": get_dir_hash(os.path.join(context.workspace_dir, "test")),
         "profiles_dir": get_dir_hash(os.path.join(context.workspace_dir, "profiles")),
         "build_pipeline_dir": get_dir_hash(os.path.join(context.workspace_dir, "build-pipeline")),
+        "config_setup_dir": get_dir_hash(os.path.join(context.workspace_dir, "configuration_setup")),
         "pipeline_conf": get_file_hash(os.path.join(context.workspace_dir, "pipeline.conf")),
         "linux_ver": linux_ver,
         "busybox_ver": busybox_ver,
@@ -672,7 +673,8 @@ HTML_CONTENT = """<!DOCTYPE html>
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             padding: 1.25rem 1rem;
-            margin: 0.5rem 0;
+            width: fit-content;
+            margin: 0.5rem auto;
             box-shadow: 6px 6px 0px var(--border-color);
             display: flex;
             flex-direction: column;
@@ -792,6 +794,13 @@ HTML_CONTENT = """<!DOCTYPE html>
             justify-content: space-between;
             border-top: 1px dashed rgba(0, 0, 0, 0.1);
             padding-top: 0.25rem;
+        }
+
+        .stage-index {
+            font-size: 0.75rem;
+            font-weight: normal;
+            color: #868e96;
+            margin-left: 0.25rem;
         }
 
         .duration-table {
@@ -1063,6 +1072,7 @@ HTML_CONTENT = """<!DOCTYPE html>
             <div class="console-box">
                 <div class="console-box-title">ADMIN CONTROLS</div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                    <button class="control-btn" onclick="triggerUpdateBuild()">UPDATE BUILD</button>
                     <button class="control-btn accent" onclick="triggerRebuild()">REBUILD PIPELINE</button>
                     <button class="control-btn warning" onclick="triggerClean()">CLEAN WORKSPACE</button>
                     <button class="control-btn danger" onclick="triggerFclean()">FCLEAN (RESET ALL)</button>
@@ -1104,7 +1114,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                                 <div class="node-name">Download Tarballs</div>
                                 <span class="node-status-label" id="status-DownloadTarballs">Pending</span>
                                 <span class="node-duration" id="duration-DownloadTarballs"></span>
-                                <div class="node-meta" id="meta-DownloadTarballs" style="display: none;"></div>
+                                <div class="node-meta" id="meta-DownloadTarballs"></div>
                             </div>
                         </div>
 
@@ -1114,7 +1124,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                                 <div class="node-name">Verify Cache</div>
                                 <span class="node-status-label" id="status-CheckEarlyExit">Pending</span>
                                 <span class="node-duration" id="duration-CheckEarlyExit"></span>
-                                <div class="node-meta" id="meta-CheckEarlyExit" style="display: none;"></div>
+                                <div class="node-meta" id="meta-CheckEarlyExit"></div>
                             </div>
                         </div>
 
@@ -1124,12 +1134,12 @@ HTML_CONTENT = """<!DOCTYPE html>
                                 <div class="node-name">Extract Sources</div>
                                 <span class="node-status-label" id="status-ExtractTarballs">Pending</span>
                                 <span class="node-duration" id="duration-ExtractTarballs"></span>
-                                <div class="node-meta" id="meta-ExtractTarballs" style="display: none;"></div>
+                                <div class="node-meta" id="meta-ExtractTarballs"></div>
                             </div>
                         </div>
 
                         <!-- Building Facility -->
-                        <div class="building-facility-container">
+                        <div class="building-facility-container" id="building-facility-container">
                             <div class="facility-header">
                                 <span class="facility-title">BUILDING FACILITY</span>
                                 <span class="facility-timer" id="facility-timer">00:00</span>
@@ -1137,89 +1147,96 @@ HTML_CONTENT = """<!DOCTYPE html>
                             <!-- Level 4 -->
                             <div class="stage-row">
                                 <div class="node-card pending" id="node-CompileKernel" onclick="selectStage('CompileKernel')">
-                                    <div class="node-name">Compile Kernel</div>
+                                    <div class="node-name">Compile Kernel <span class="stage-index">[1/6]</span></div>
                                     <span class="node-status-label" id="status-CompileKernel">Pending</span>
                                     <span class="node-duration" id="duration-CompileKernel"></span>
-                                    <div class="node-meta" id="meta-CompileKernel" style="display: none;"></div>
+                                    <div class="node-meta" id="meta-CompileKernel"></div>
                                 </div>
                                 <div class="node-card pending" id="node-CompileBusybox" onclick="selectStage('CompileBusybox')">
-                                    <div class="node-name">Compile BusyBox</div>
+                                    <div class="node-name">Compile BusyBox <span class="stage-index">[2/6]</span></div>
                                     <span class="node-status-label" id="status-CompileBusybox">Pending</span>
                                     <span class="node-duration" id="duration-CompileBusybox"></span>
-                                    <div class="node-meta" id="meta-CompileBusybox" style="display: none;"></div>
+                                    <div class="node-meta" id="meta-CompileBusybox"></div>
                                 </div>
                                 <div class="node-card pending" id="node-CompileS6" onclick="selectStage('CompileS6')">
-                                    <div class="node-name">Compile s6</div>
+                                    <div class="node-name">Compile s6 <span class="stage-index">[3/6]</span></div>
                                     <span class="node-status-label" id="status-CompileS6">Pending</span>
                                     <span class="node-duration" id="duration-CompileS6"></span>
-                                    <div class="node-meta" id="meta-CompileS6" style="display: none;"></div>
+                                    <div class="node-meta" id="meta-CompileS6"></div>
                                 </div>
                             </div>
                             <div class="stage-row">
                                 <div class="node-card pending" id="node-CompileKernelModule" onclick="selectStage('CompileKernelModule')">
-                                    <div class="node-name">Compile Driver</div>
+                                    <div class="node-name">Compile Driver <span class="stage-index">[4/6]</span></div>
                                     <span class="node-status-label" id="status-CompileKernelModule">Pending</span>
                                     <span class="node-duration" id="duration-CompileKernelModule"></span>
-                                    <div class="node-meta" id="meta-CompileKernelModule" style="display: none;"></div>
+                                    <div class="node-meta" id="meta-CompileKernelModule"></div>
                                 </div>
                                 <div class="node-card pending" id="node-CompileSDK" onclick="selectStage('CompileSDK')">
-                                    <div class="node-name">Compile SDK</div>
+                                    <div class="node-name">Compile SDK <span class="stage-index">[5/6]</span></div>
                                     <span class="node-status-label" id="status-CompileSDK">Pending</span>
                                     <span class="node-duration" id="duration-CompileSDK"></span>
-                                    <div class="node-meta" id="meta-CompileSDK" style="display: none;"></div>
+                                    <div class="node-meta" id="meta-CompileSDK"></div>
                                 </div>
                                 <div class="node-card pending" id="node-CompileDaemon" onclick="selectStage('CompileDaemon')">
-                                    <div class="node-name">Compile Daemon</div>
+                                    <div class="node-name">Compile Daemon <span class="stage-index">[6/6]</span></div>
                                     <span class="node-status-label" id="status-CompileDaemon">Pending</span>
                                     <span class="node-duration" id="duration-CompileDaemon"></span>
-                                    <div class="node-meta" id="meta-CompileDaemon" style="display: none;"></div>
+                                    <div class="node-meta" id="meta-CompileDaemon"></div>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Level 5 -->
-                        <div class="stage-row">
-                            <div class="node-card pending" id="node-AssembleRootfs" onclick="selectStage('AssembleRootfs')">
-                                <div class="node-name">Assemble RootFS</div>
-                                <span class="node-status-label" id="status-AssembleRootfs">Pending</span>
-                                <span class="node-duration" id="duration-AssembleRootfs"></span>
-                                <div class="node-meta" id="meta-AssembleRootfs" style="display: none;"></div>
+                        <!-- Imaging Bytes -->
+                        <div class="building-facility-container" id="imaging-bytes-container">
+                            <div class="facility-header">
+                                <span class="facility-title">IMAGING BYTES</span>
+                                <span class="facility-timer" id="imaging-bytes-timer">00:00</span>
                             </div>
-                        </div>
+                            <!-- Level 5 -->
+                            <div class="stage-row">
+                                <div class="node-card pending" id="node-AssembleRootfs" onclick="selectStage('AssembleRootfs')">
+                                    <div class="node-name">Assemble RootFS <span class="stage-index">[1/5]</span></div>
+                                    <span class="node-status-label" id="status-AssembleRootfs">Pending</span>
+                                    <span class="node-duration" id="duration-AssembleRootfs"></span>
+                                    <div class="node-meta" id="meta-AssembleRootfs"></div>
+                                </div>
+                            </div>
 
-                        <!-- Level 5.5 -->
-                        <div class="stage-row">
-                            <div class="node-card pending" id="node-CopyConfigurationSetup" onclick="selectStage('CopyConfigurationSetup')">
-                                <div class="node-name">Copy Setup Files</div>
-                                <span class="node-status-label" id="status-CopyConfigurationSetup">Pending</span>
-                                <span class="node-duration" id="duration-CopyConfigurationSetup"></span>
-                                <div class="node-meta" id="meta-CopyConfigurationSetup" style="display: none;"></div>
+                            <!-- Level 5.5 -->
+                            <div class="stage-row">
+                                <div class="node-card pending" id="node-CopyConfigurationSetup" onclick="selectStage('CopyConfigurationSetup')">
+                                    <div class="node-name">Copy Setup Files <span class="stage-index">[2/5]</span></div>
+                                    <span class="node-status-label" id="status-CopyConfigurationSetup">Pending</span>
+                                    <span class="node-duration" id="duration-CopyConfigurationSetup"></span>
+                                    <div class="node-meta" id="meta-CopyConfigurationSetup"></div>
+                                </div>
                             </div>
-                        </div>
 
-                        <!-- Level 6 -->
-                        <div class="stage-row">
-                            <div class="node-card pending" id="node-PackageBtrfsImage" onclick="selectStage('PackageBtrfsImage')">
-                                <div class="node-name">Btrfs Rootfs</div>
-                                <span class="node-status-label" id="status-PackageBtrfsImage">Pending</span>
-                                <span class="node-duration" id="duration-PackageBtrfsImage"></span>
-                                <div class="node-meta" id="meta-PackageBtrfsImage" style="display: none;"></div>
+                            <!-- Level 6 -->
+                            <div class="stage-row">
+                                <div class="node-card pending" id="node-PackageBtrfsImage" onclick="selectStage('PackageBtrfsImage')">
+                                    <div class="node-name">Btrfs Rootfs <span class="stage-index">[3/5]</span></div>
+                                    <span class="node-status-label" id="status-PackageBtrfsImage">Pending</span>
+                                    <span class="node-duration" id="duration-PackageBtrfsImage"></span>
+                                    <div class="node-meta" id="meta-PackageBtrfsImage"></div>
+                                </div>
+                                <div class="node-card pending" id="node-PackageESPImage" onclick="selectStage('PackageESPImage')">
+                                    <div class="node-name">ESP Boot <span class="stage-index">[4/5]</span></div>
+                                    <span class="node-status-label" id="status-PackageESPImage">Pending</span>
+                                    <span class="node-duration" id="duration-PackageESPImage"></span>
+                                    <div class="node-meta" id="meta-PackageESPImage"></div>
+                                </div>
                             </div>
-                            <div class="node-card pending" id="node-PackageESPImage" onclick="selectStage('PackageESPImage')">
-                                <div class="node-name">ESP Boot</div>
-                                <span class="node-status-label" id="status-PackageESPImage">Pending</span>
-                                <span class="node-duration" id="duration-PackageESPImage"></span>
-                                <div class="node-meta" id="meta-PackageESPImage" style="display: none;"></div>
-                            </div>
-                        </div>
 
-                        <!-- Level 7 -->
-                        <div class="stage-row">
-                            <div class="node-card pending" id="node-AssembleGPTImage" onclick="selectStage('AssembleGPTImage')">
-                                <div class="node-name">Assemble GPT UEFI</div>
-                                <span class="node-status-label" id="status-AssembleGPTImage">Pending</span>
-                                <span class="node-duration" id="duration-AssembleGPTImage"></span>
-                                <div class="node-meta" id="meta-AssembleGPTImage" style="display: none;"></div>
+                            <!-- Level 7 -->
+                            <div class="stage-row">
+                                <div class="node-card pending" id="node-AssembleGPTImage" onclick="selectStage('AssembleGPTImage')">
+                                    <div class="node-name">Assemble GPT UEFI <span class="stage-index">[5/5]</span></div>
+                                    <span class="node-status-label" id="status-AssembleGPTImage">Pending</span>
+                                    <span class="node-duration" id="duration-AssembleGPTImage"></span>
+                                    <div class="node-meta" id="meta-AssembleGPTImage"></div>
+                                </div>
                             </div>
                         </div>
 
@@ -1229,7 +1246,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                                 <div class="node-name">Ship Image</div>
                                 <span class="node-status-label" id="status-ShipImage">Pending</span>
                                 <span class="node-duration" id="duration-ShipImage"></span>
-                                <div class="node-meta" id="meta-ShipImage" style="display: none;"></div>
+                                <div class="node-meta" id="meta-ShipImage"></div>
                             </div>
                         </div>
                     </div>
@@ -1514,6 +1531,25 @@ HTML_CONTENT = """<!DOCTYPE html>
                     onDone();
                 })
                 .catch(err => { alert("FClean failed: " + err); onDone(); });
+            });
+        }
+
+        function triggerUpdateBuild() {
+            performProtectedAction((pw, onDone) => {
+                fetch("/api/build", {
+                    method: "POST",
+                    headers: { "X-Portal-Password": pw }
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    if (res.ok) {
+                        // Success: State will update dynamically via SSE
+                    } else {
+                        res.json().then(d => alert("Update build failed: " + (d.error || "unknown")));
+                    }
+                    onDone();
+                })
+                .catch(err => { alert("Update build failed: " + err); onDone(); });
             });
         }
 
@@ -1811,7 +1847,22 @@ HTML_CONTENT = """<!DOCTYPE html>
             term.scrollTop = term.scrollHeight;
         }
 
-        // SVG Curve connections drawing
+        // SVG Orthogonal connections drawing with rounded corners
+        function getOrthogonalPath(x1, y1, x2, y2, R = 12) {
+            if (Math.abs(x1 - x2) < 1) {
+                return `M ${x1} ${y1} L ${x2} ${y2}`;
+            }
+            const r = Math.min(R, Math.abs(x2 - x1) / 2, Math.abs(y2 - y1) / 2);
+            const ymid = y1 + (y2 - y1) / 2;
+            const signX = x2 > x1 ? 1 : -1;
+            return `M ${x1} ${y1} ` +
+                   `L ${x1} ${ymid - r} ` +
+                   `Q ${x1} ${ymid} ${x1 + r * signX} ${ymid} ` +
+                   `L ${x2 - r * signX} ${ymid} ` +
+                   `Q ${x2} ${ymid} ${x2} ${ymid + r} ` +
+                   `L ${x2} ${y2}`;
+        }
+
         function drawConnections() {
             const svg = document.getElementById("dag-svg");
             if (!svg) return;
@@ -1839,26 +1890,6 @@ HTML_CONTENT = """<!DOCTYPE html>
                 { from: "PackageESPImage", to: "AssembleGPTImage" },
                 { from: "AssembleGPTImage", to: "ShipImage" }
             ];
-            
-            const connectionAnchors = {
-                "DownloadTarballs->CheckEarlyExit": { from: "right", to: "left" },
-                "CheckEarlyExit->ExtractTarballs": { from: "right", to: "left" },
-                "ExtractTarballs->CompileKernel": { from: "left", to: "left" },
-                "ExtractTarballs->CompileBusybox": { from: "bottom", to: "left" },
-                "ExtractTarballs->CompileS6": { from: "right", to: "left" },
-                "CompileKernel->CompileKernelModule": { from: "right", to: "left" },
-                "CompileBusybox->CompileSDK": { from: "right", to: "left" },
-                "CompileS6->CompileDaemon": { from: "right", to: "left" },
-                "CompileKernelModule->AssembleRootfs": { from: "right", to: "left" },
-                "CompileSDK->AssembleRootfs": { from: "bottom", to: "top" },
-                "CompileDaemon->AssembleRootfs": { from: "left", to: "right" },
-                "AssembleRootfs->CopyConfigurationSetup": { from: "right", to: "left" },
-                "CopyConfigurationSetup->PackageBtrfsImage": { from: "left", to: "left" },
-                "CopyConfigurationSetup->PackageESPImage": { from: "right", to: "left" },
-                "PackageBtrfsImage->AssembleGPTImage": { from: "right", to: "left" },
-                "PackageESPImage->AssembleGPTImage": { from: "left", to: "right" },
-                "AssembleGPTImage->ShipImage": { from: "right", to: "left" }
-            };
 
             function getAnchorCoords(rect, anchor) {
                 let x, y;
@@ -1878,6 +1909,13 @@ HTML_CONTENT = """<!DOCTYPE html>
                 return { x, y };
             }
 
+            const pathGroups = {
+                success: [],
+                running: [],
+                failed: [],
+                pending: []
+            };
+
             connections.forEach(conn => {
                 const fromEl = document.getElementById("node-" + conn.from);
                 const toEl = document.getElementById("node-" + conn.to);
@@ -1886,90 +1924,44 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const fromRect = fromEl.getBoundingClientRect();
                 const toRect = toEl.getBoundingClientRect();
                 
-                const key = conn.from + "->" + conn.to;
-                const anchors = connectionAnchors[key] || { from: "bottom", to: "top" };
-                
-                const pt1 = getAnchorCoords(fromRect, anchors.from);
-                const pt2 = getAnchorCoords(toRect, anchors.to);
+                const pt1 = getAnchorCoords(fromRect, "bottom");
+                const pt2 = getAnchorCoords(toRect, "top");
                 
                 const x1 = pt1.x;
                 const y1 = pt1.y;
                 const x2 = pt2.x;
                 const y2 = pt2.y;
                 
-                const dx = Math.abs(x2 - x1);
-                const dy = Math.abs(y2 - y1);
-                const len = Math.max(dx * 0.4, dy * 0.4, 40);
+                const d = getOrthogonalPath(x1, y1, x2, y2, 12);
                 
-                let cp1x = x1;
-                let cp1y = y1;
-                if (anchors.from === "right") cp1x += len;
-                else if (anchors.from === "left") cp1x -= len;
-                else if (anchors.from === "top") cp1y -= len;
-                else cp1y += len; // "bottom"
-                
-                let cp2x = x2;
-                let cp2y = y2;
-                if (anchors.to === "right") cp2x += len;
-                else if (anchors.to === "left") cp2x -= len;
-                else if (anchors.to === "top") cp2y -= len;
-                else cp2y += len; // "bottom"
-                
-                const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
-                
-                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                path.setAttribute("d", d);
-                path.setAttribute("stroke-width", "3");
-                path.setAttribute("fill", "none");
-                
-                let strokeColor = "var(--border-color)";
+                let group = "pending";
                 if (fromEl.classList.contains("success") || fromEl.classList.contains("skipped")) {
-                    strokeColor = "#37b24d";
+                    group = "success";
                 } else if (fromEl.classList.contains("running")) {
-                    strokeColor = "#fcc419";
-                    path.setAttribute("stroke-dasharray", "8, 6");
-                    path.style.animation = "dash 1s linear infinite";
+                    group = "running";
                 } else if (fromEl.classList.contains("failed")) {
-                    strokeColor = "#f03e3e";
+                    group = "failed";
                 }
-                
-                path.setAttribute("stroke", strokeColor);
-                svg.appendChild(path);
+                pathGroups[group].push(d);
             });
             
-            // Top connector line: starts at top-center of container, goes to left edge of DownloadTarballs
+            // Top connector line
             const firstCard = document.getElementById("node-DownloadTarballs");
             if (firstCard) {
                 const firstRect = firstCard.getBoundingClientRect();
                 const x1 = containerRect.width / 2;
                 const y1 = 0;
-                const x2 = firstRect.left - containerRect.left;
-                const y2 = (firstRect.top + firstRect.height / 2) - containerRect.top;
+                const x2 = (firstRect.left + firstRect.width / 2) - containerRect.left;
+                const y2 = firstRect.top - containerRect.top;
                 
-                const dx = Math.abs(x2 - x1);
-                const dy = Math.abs(y2 - y1);
-                const len = Math.max(dx * 0.4, dy * 0.4, 40);
-                
-                const cp1x = x1;
-                const cp1y = y1 + len;
-                const cp2x = x2 - len;
-                const cp2y = y2;
-                
-                const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
-                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                path.setAttribute("d", d);
-                path.setAttribute("stroke-width", "3");
-                path.setAttribute("fill", "none");
-                let strokeColor = "var(--border-color)";
+                const d = `M ${x1} ${y1} L ${x2} ${y2}`;
+                let group = "pending";
                 if (firstCard.classList.contains("success") || firstCard.classList.contains("skipped")) {
-                    strokeColor = "#37b24d";
+                    group = "success";
                 } else if (firstCard.classList.contains("running")) {
-                    strokeColor = "#fcc419";
-                    path.setAttribute("stroke-dasharray", "8, 6");
-                    path.style.animation = "dash 1s linear infinite";
+                    group = "running";
                 }
-                path.setAttribute("stroke", strokeColor);
-                svg.appendChild(path);
+                pathGroups[group].push(d);
             }
             
             // Bottom connector line
@@ -1981,66 +1973,177 @@ HTML_CONTENT = """<!DOCTYPE html>
                 const x2 = containerRect.width / 2;
                 const y2 = containerRect.height;
                 
-                const dx = Math.abs(x2 - x1);
-                const dy = Math.abs(y2 - y1);
-                const len = Math.max(dx * 0.4, dy * 0.4, 40);
-                
-                const cp1x = x1;
-                const cp1y = y1 + len;
-                const cp2x = x2;
-                const cp2y = y2 - len;
-                
-                const d = `M ${x1} ${y1} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${x2} ${y2}`;
+                const d = `M ${x1} ${y1} L ${x2} ${y2}`;
+                let group = "pending";
+                if (lastCard.classList.contains("success") || lastCard.classList.contains("skipped")) {
+                    group = "success";
+                } else if (lastCard.classList.contains("running")) {
+                    group = "running";
+                }
+                pathGroups[group].push(d);
+            }
+
+            // Render compound paths
+            if (pathGroups.pending.length > 0) {
                 const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-                path.setAttribute("d", d);
+                path.setAttribute("d", pathGroups.pending.join(" "));
+                path.setAttribute("stroke", "var(--border-color)");
                 path.setAttribute("stroke-width", "3");
                 path.setAttribute("fill", "none");
-                let strokeColor = "var(--border-color)";
-                if (lastCard.classList.contains("success") || lastCard.classList.contains("skipped")) {
-                    strokeColor = "#37b24d";
-                } else if (lastCard.classList.contains("running")) {
-                    strokeColor = "#fcc419";
-                    path.setAttribute("stroke-dasharray", "8, 6");
-                    path.style.animation = "dash 1s linear infinite";
-                }
-                path.setAttribute("stroke", strokeColor);
+                svg.appendChild(path);
+            }
+            if (pathGroups.success.length > 0) {
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", pathGroups.success.join(" "));
+                path.setAttribute("stroke", "#37b24d");
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                svg.appendChild(path);
+            }
+            if (pathGroups.failed.length > 0) {
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", pathGroups.failed.join(" "));
+                path.setAttribute("stroke", "#f03e3e");
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                svg.appendChild(path);
+            }
+            if (pathGroups.running.length > 0) {
+                const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                path.setAttribute("d", pathGroups.running.join(" "));
+                path.setAttribute("stroke", "#fcc419");
+                path.setAttribute("stroke-width", "3");
+                path.setAttribute("fill", "none");
+                path.setAttribute("stroke-dasharray", "8, 6");
+                path.style.animation = "dash 1s linear infinite";
                 svg.appendChild(path);
             }
         }
 
-        function updateFacilityTimer() {
+        // Client-side Container duration calculations
+        function calculateContainerDuration(stageNames, nodesState, serverCurrentTime) {
+            if (!nodesState) return "00:00";
+            let minStart = null;
+            let maxEnd = null;
+            let anyRunning = false;
+            let anyStarted = false;
+
+            stageNames.forEach(name => {
+                const node = nodesState[name];
+                if (node) {
+                    if (node.status === "Running") {
+                        anyRunning = true;
+                    }
+                    if (node.start_time !== null && node.start_time !== undefined) {
+                        anyStarted = true;
+                        if (minStart === null || node.start_time < minStart) {
+                            minStart = node.start_time;
+                        }
+                    }
+                    if (node.end_time !== null && node.end_time !== undefined) {
+                        if (maxEnd === null || node.end_time > maxEnd) {
+                            maxEnd = node.end_time;
+                        }
+                    }
+                }
+            });
+
+            if (!anyStarted || minStart === null) {
+                return "00:00";
+            }
+
+            let endTime = maxEnd;
+            if (anyRunning || endTime === null) {
+                endTime = serverCurrentTime || (Date.now() / 1000);
+            }
+
+            const elapsed = Math.max(0, endTime - minStart);
+            const mins = Math.floor(elapsed / 60).toString().padStart(2, '0');
+            const secs = Math.floor(elapsed % 60).toString().padStart(2, '0');
+            return `${mins}:${secs}`;
+        }
+
+        function updateContainerTimers(serverCurrentTime) {
             const facilityStages = ['CompileKernel', 'CompileBusybox', 'CompileS6', 'CompileKernelModule', 'CompileSDK', 'CompileDaemon'];
-            let isAnyRunning = false;
+            const imagingStages = ['AssembleRootfs', 'CopyConfigurationSetup', 'PackageBtrfsImage', 'PackageESPImage', 'AssembleGPTImage'];
             
+            const facilityDuration = calculateContainerDuration(facilityStages, window.nodesState, serverCurrentTime);
+            const imagingDuration = calculateContainerDuration(imagingStages, window.nodesState, serverCurrentTime);
+            
+            let facDone = 0;
             facilityStages.forEach(name => {
-                const el = document.getElementById("node-" + name);
-                if (el && el.classList.contains("running")) {
-                    isAnyRunning = true;
+                const node = window.nodesState ? window.nodesState[name] : null;
+                if (node && (node.status === "Success" || node.status === "Skipped" || (node.status === "Failed" && node.details && node.details.includes("[Allowed]")))) {
+                    facDone++;
                 }
             });
             
-            if (isAnyRunning) {
-                if (!window.facilityStartTime) {
-                    window.facilityStartTime = Date.now();
+            let imgDone = 0;
+            imagingStages.forEach(name => {
+                const node = window.nodesState ? window.nodesState[name] : null;
+                if (node && (node.status === "Success" || node.status === "Skipped" || (node.status === "Failed" && node.details && node.details.includes("[Allowed]")))) {
+                    imgDone++;
                 }
-                const elapsedSec = (Date.now() - window.facilityStartTime) / 1000;
-                const mins = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
-                const secs = Math.floor(elapsedSec % 60).toString().padStart(2, '0');
-                document.getElementById("facility-timer").textContent = `${mins}:${secs}`;
-            } else {
-                if (window.facilityStartTime) {
-                    const rootfsEl = document.getElementById("node-AssembleRootfs");
-                    const isPast = rootfsEl && (rootfsEl.classList.contains("running") || rootfsEl.classList.contains("success") || rootfsEl.classList.contains("failed"));
-                    if (!isPast) {
-                        const elapsedSec = (Date.now() - window.facilityStartTime) / 1000;
-                        const mins = Math.floor(elapsedSec / 60).toString().padStart(2, '0');
-                        const secs = Math.floor(elapsedSec % 60).toString().padStart(2, '0');
-                        document.getElementById("facility-timer").textContent = `${mins}:${secs}`;
-                    }
-                } else {
-                    document.getElementById("facility-timer").textContent = "00:00";
+            });
+            
+            const facTimer = document.getElementById("facility-timer");
+            if (facTimer) facTimer.textContent = `${facilityDuration} (${facDone}/6)`;
+            
+            const imgTimer = document.getElementById("imaging-bytes-timer");
+            if (imgTimer) imgTimer.textContent = `${imagingDuration} (${imgDone}/5)`;
+        }
+
+        function updateNodeMeta(name, stageBuilds, versions) {
+            const metaEl = document.getElementById("meta-" + name);
+            if (!metaEl) return;
+            
+            const buildingStages = ["CompileKernel", "CompileBusybox", "CompileS6", "CompileKernelModule", "CompileSDK", "CompileDaemon"];
+            if (!buildingStages.includes(name)) {
+                metaEl.innerHTML = "";
+                metaEl.style.display = "none";
+                return;
+            }
+            metaEl.style.display = "";
+            
+            let buildCount = 0;
+            let uuid = "N/A";
+            if (stageBuilds && stageBuilds[name]) {
+                buildCount = stageBuilds[name].build_number || 0;
+                uuid = stageBuilds[name].uuid || "N/A";
+                if (uuid && uuid !== "N/A") {
+                    uuid = uuid.substring(0, 8);
                 }
             }
+            
+            let ver = "";
+            if (versions) {
+                if (name === "CompileKernel") ver = versions.kernel;
+                else if (name === "CompileBusybox") ver = versions.busybox;
+                else if (name === "CompileS6") ver = versions.s6;
+                else if (name === "CompileKernelModule") ver = versions.kernel_module;
+                else if (name === "CompileSDK") ver = versions.sdk;
+                else if (name === "CompileDaemon") ver = versions.daemon;
+                else if (name === "AssembleRootfs") ver = versions.userspace;
+            }
+            
+            let leftText = `#${buildCount}`;
+            if (ver) {
+                leftText = `v${ver} | #${buildCount}`;
+            }
+            metaEl.innerHTML = `<span class="meta-left">${leftText}</span><span class="meta-right">${uuid}</span>`;
+        }
+
+        function updateAllNodeMeta(stageBuilds, versions) {
+            const stages = [
+                "DownloadTarballs", "CheckEarlyExit", "ExtractTarballs",
+                "CompileKernel", "CompileBusybox", "CompileS6",
+                "CompileKernelModule", "CompileSDK", "CompileDaemon",
+                "AssembleRootfs", "CopyConfigurationSetup",
+                "PackageBtrfsImage", "PackageESPImage", "AssembleGPTImage", "ShipImage"
+            ];
+            stages.forEach(name => {
+                updateNodeMeta(name, stageBuilds, versions);
+            });
         }
 
         window.addEventListener("load", () => {
@@ -2062,6 +2165,8 @@ HTML_CONTENT = """<!DOCTYPE html>
                 window.stageBuilds = payload.stage_builds;
             }
             
+            window.nodesState = states;
+            
             for (const [name, data] of Object.entries(states)) {
                 updateNode(name, data.status, data.details, data.elapsed);
                 if (data.status === "Success" || data.status === "Skipped" || (data.status === "Failed" && data.details && data.details.includes("[Allowed]"))) {
@@ -2072,6 +2177,9 @@ HTML_CONTENT = """<!DOCTYPE html>
                     selectStage(name);
                 }
             }
+            
+            updateContainerTimers(payload.server_current_time);
+            updateAllNodeMeta(window.stageBuilds, payload.versions);
             
             if (payload.build_active) {
                 startTimer(payload.build_start_time, payload.server_current_time);
@@ -2162,7 +2270,19 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (data.stage_builds) {
                 window.stageBuilds = data.stage_builds;
             }
+            
+            if (!window.nodesState) window.nodesState = {};
+            window.nodesState[data.name] = {
+                status: data.status,
+                details: data.details,
+                elapsed: data.elapsed,
+                start_time: data.start_time,
+                end_time: data.end_time
+            };
+            
             updateNode(data.name, data.status, data.details, data.elapsed);
+            updateContainerTimers(data.server_current_time);
+            updateAllNodeMeta(window.stageBuilds, data.versions);
             
             if (data.status === "Running") {
                 updateGlobalStatus("BUILDING", "building");
@@ -2347,7 +2467,29 @@ def update_node_status(name, status, details="", elapsed=None):
     with log_lock:
         logs = log_buffers.get(name, "")
     
-    node_states[name] = {"status": status, "details": details, "elapsed": elapsed}
+    state = node_states.get(name, {"status": "Pending", "details": "Waiting in queue...", "elapsed": None, "start_time": None, "end_time": None})
+    state["status"] = status
+    state["details"] = details
+    state["elapsed"] = elapsed
+    
+    if status == "Running":
+        state["start_time"] = time.time()
+        state["end_time"] = None
+    elif status in ("Success", "Failed"):
+        if state.get("start_time") is None:
+            if elapsed is not None:
+                state["start_time"] = time.time() - elapsed
+            else:
+                state["start_time"] = time.time()
+        if elapsed is not None:
+            state["end_time"] = state["start_time"] + elapsed
+        else:
+            state["end_time"] = time.time()
+    elif status == "Skipped":
+        state["start_time"] = None
+        state["end_time"] = None
+        
+    node_states[name] = state
     
     ws_dir = global_context.workspace_dir if global_context else "."
     if status in ("Success", "Failed"):
@@ -2368,10 +2510,13 @@ def update_node_status(name, status, details="", elapsed=None):
         "status": status,
         "details": details,
         "elapsed": elapsed,
+        "start_time": state["start_time"],
+        "end_time": state["end_time"],
         "logs": logs,
         "build_start_time": build_start_time,
         "server_current_time": time.time(),
-        "stage_builds": stage_builds
+        "stage_builds": stage_builds,
+        "versions": get_state_payload()["versions"]
     }
     msg = f"event: update\ndata: {json.dumps(payload)}\n\n"
     for q in list(clients):
@@ -2625,6 +2770,24 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
             else:
                 self.send_error(500, "Context/Pipeline not initialized")
                 
+        elif self.path == '/api/build':
+            if global_context and global_pipeline:
+                if build_active:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Build already active"}).encode('utf-8'))
+                    return
+                Logger.log_info("Incremental/Update build requested from web view")
+                # Trigger build without clearing cache
+                build_queue.put((global_context, global_pipeline))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            else:
+                self.send_error(500, "Context/Pipeline not initialized")
+                
         elif self.path == '/api/qemu/settings':
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length).decode('utf-8')
@@ -2749,6 +2912,9 @@ def get_state_payload():
     allowed_failures = []
     if global_context and hasattr(global_context, 'config'):
         versions = {
+            "kernel": global_context.config.get("LINUX_VERSION", "N/A"),
+            "busybox": global_context.config.get("BUSYBOX_VERSION", "N/A"),
+            "s6": global_context.config.get("S6_VERSION", "N/A"),
             "kernel_module": global_context.config.get("KERNEL_MODULE_VERSION", "0.1"),
             "sdk": global_context.config.get("SDK_VERSION", "0.1.0"),
             "daemon": global_context.config.get("DAEMON_VERSION", "0.1.0"),
@@ -2758,6 +2924,9 @@ def get_state_payload():
         allowed_failures = [x.strip() for x in allowed_failures_raw.split(",") if x.strip()]
     else:
         versions = {
+            "kernel": "N/A",
+            "busybox": "N/A",
+            "s6": "N/A",
             "kernel_module": "0.1",
             "sdk": "0.1.0",
             "daemon": "0.1.0",
@@ -2809,17 +2978,19 @@ def broadcast_status(context):
 
 def find_ovmf_firmware():
     paths = [
+        "/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
+        "/opt/homebrew/share/qemu/OVMF.fd",
         "/usr/share/OVMF/OVMF_CODE.fd",
         "/usr/share/ovmf/OVMF.fd",
         "/usr/share/qemu/OVMF.fd",
-        "/opt/homebrew/share/qemu/edk2-x86_64-code.fd",
-        "/opt/homebrew/share/qemu/OVMF.fd",
+        "/opt/local/share/qemu/edk2-x86_64-code.fd",
+        "/usr/share/ovmf/x64/OVMF_CODE.fd",
     ]
     for p in paths:
         if os.path.isfile(p):
             return p
     # Search fallback
-    for root_dir in ["/usr/share/OVMF", "/usr/share/ovmf", "/usr/share/qemu", "/opt/homebrew/share/qemu"]:
+    for root_dir in ["/opt/homebrew/share/qemu", "/usr/share/OVMF", "/usr/share/ovmf", "/usr/share/qemu"]:
         if os.path.isdir(root_dir):
             for root, dirs, files in os.walk(root_dir):
                 for f in files:
@@ -2890,13 +3061,36 @@ def start_qemu_guest(workspace_dir):
         
     ovmf_path = find_ovmf_firmware()
     
-    qemu_cmd = [
-        "qemu-system-x86_64",
-        "-m", "1G",
-        "-drive", f"file={img_path},format=raw,index=0,media=disk"
-    ]
+    # Detect Host Platform and select proper hypervisor acceleration
+    accel_args = []
+    import platform
+    os_type = platform.system()
+    if os_type == "Darwin":
+        import subprocess as sp
+        try:
+            arch = sp.check_output(["uname", "-m"]).decode("utf-8").strip()
+        except Exception:
+            arch = "x86_64"
+        if arch == "x86_64":
+            accel_args = ["-accel", "hvf", "-cpu", "Penryn"]
+        else:
+            accel_args = ["-cpu", "max"]
+    elif os_type == "Linux":
+        if os.access("/dev/kvm", os.R_OK | os.W_OK):
+            accel_args = ["-accel", "kvm", "-cpu", "host"]
+        else:
+            accel_args = []
+
+    qemu_cmd = ["qemu-system-x86_64"]
+    qemu_cmd.extend(accel_args)
     
-    in_docker = os.path.exists('/.dockerenv') or os.path.exists('/run/.containerenv')
+    if ovmf_path:
+        qemu_cmd.extend(["-drive", f"if=pflash,format=raw,unit=0,file={ovmf_path},readonly=on"])
+        Logger.log_info(f"Using UEFI firmware via pflash: {ovmf_path}")
+    else:
+        Logger.log_warn("No UEFI firmware found. systemd-boot inside guest might fail.")
+        
+    qemu_cmd.extend(["-m", "1G", "-hda", img_path])
     
     if qemu_display_mode == "serial":
         qemu_cmd.extend(["-display", "none", "-serial", "stdio"])
@@ -2904,12 +3098,6 @@ def start_qemu_guest(workspace_dir):
         # Graphics display mode (headless but VGA emulator enabled for guest OS)
         qemu_cmd.extend(["-display", "none", "-vga", "std", "-serial", "stdio"])
         Logger.log_info("Using headless display backend for VGA graphics (standard emulation)")
-        
-    if ovmf_path:
-        qemu_cmd.extend(["-bios", ovmf_path])
-        Logger.log_info(f"Using UEFI firmware via -bios: {ovmf_path}")
-    else:
-        Logger.log_warn("No UEFI firmware found. systemd-boot inside guest might fail.")
 
     try:
         qemu_log_buffer = ""
@@ -2989,7 +3177,7 @@ def build_worker():
             
             # Reset node states in the UI
             for node in pipeline.execution_order:
-                node_states[node.name] = {"status": "Pending", "details": "Waiting in queue...", "elapsed": None}
+                node_states[node.name] = {"status": "Pending", "details": "Waiting in queue...", "elapsed": None, "start_time": None, "end_time": None}
                 with log_lock:
                     log_buffers[node.name] = ""
             
@@ -3111,11 +3299,134 @@ class PipelineContext:
                             config[parts[0].strip()] = parts[1].strip().strip('"').strip("'")
         return config
 
+def archive_modules_separately(context):
+    try:
+        archive_dir = os.path.join(context.workspace_dir, ".archive")
+        os.makedirs(archive_dir, exist_ok=True)
+        
+        build_number_file = os.path.join(archive_dir, "build_number")
+        build_num = 1
+        if os.path.exists(build_number_file):
+            try:
+                with open(build_number_file, 'r') as f:
+                    build_num = int(f.read().strip())
+            except Exception:
+                pass
+
+        import datetime
+        
+        modules_config = [
+            {
+                "name": "kernel",
+                "version": context.config.get("LINUX_VERSION", "6.6.21"),
+                "stage": "CompileKernel",
+                "files": [("bzImage", "bzImage")]
+            },
+            {
+                "name": "busybox",
+                "version": context.config.get("BUSYBOX_VERSION", "1.36.1"),
+                "stage": "CompileBusybox",
+                "files": [("busybox_install.tar.gz", "busybox_install.tar.gz")]
+            },
+            {
+                "name": "s6",
+                "version": context.config.get("S6_VERSION", "2.11.3.2"),
+                "stage": "CompileS6",
+                "files": [("s6_install.tar.gz", "s6_install.tar.gz")]
+            },
+            {
+                "name": "kernel_module",
+                "version": context.config.get("KERNEL_MODULE_VERSION", "0.1"),
+                "stage": "CompileKernelModule",
+                "files": [("pronze.ko", "pronze.ko")]
+            },
+            {
+                "name": "sdk",
+                "version": context.config.get("SDK_VERSION", "0.1.0"),
+                "stage": "CompileSDK",
+                "files": [
+                    ("libpronze.so", "libpronze.so"),
+                    ("test_alloc", "test_alloc"),
+                    ("test_bounds", "test_bounds"),
+                    ("test_zig", "test_zig"),
+                    ("test_rust", "test_rust")
+                ]
+            },
+            {
+                "name": "daemon",
+                "version": context.config.get("DAEMON_VERSION", "0.1.0"),
+                "stage": "CompileDaemon",
+                "files": [("pronzed", "pronzed")]
+            },
+            {
+                "name": "userspace",
+                "version": context.config.get("USERSPACE_VERSION", "0.1.0"),
+                "stage": "AssembleGPTImage",
+                "files": [("pronzeos.img", "pronzeos.img")]
+            }
+        ]
+
+        stage_builds = load_stage_builds(context.workspace_dir)
+
+        for mod in modules_config:
+            copied_files = []
+            mod_dest_dir = os.path.join(archive_dir, mod["name"], mod["version"])
+            
+            for src_name, dest_name in mod["files"]:
+                src_path = os.path.join(context.output_dir, src_name)
+                if not os.path.exists(src_path):
+                    src_path = os.path.join(context.nochanges_dir, src_name)
+                
+                if not os.path.exists(src_path):
+                    if src_name == "pronze.ko":
+                        src_path = os.path.join(context.workspace_dir, "kernel/pronze.ko")
+                    elif src_name == "libpronze.so":
+                        src_path = os.path.join(context.workspace_dir, "sdk/c/src/libpronze.so")
+                    elif src_name == "pronzed":
+                        src_path = os.path.join(context.workspace_dir, "daemon/target/x86_64-unknown-linux-musl/release/pronzed")
+                    elif src_name.startswith("test_"):
+                        if src_name == "test_rust":
+                            src_path = os.path.join(context.workspace_dir, "test/test_rust/target/x86_64-unknown-linux-musl/release/test_rust")
+                        else:
+                            src_path = os.path.join(context.workspace_dir, "test", src_name)
+                
+                if os.path.exists(src_path):
+                    os.makedirs(mod_dest_dir, exist_ok=True)
+                    shutil.copy2(src_path, os.path.join(mod_dest_dir, dest_name))
+                    copied_files.append(dest_name)
+            
+            if copied_files:
+                stage_info = stage_builds.get(mod["stage"], {})
+                mod_uuid = stage_info.get("uuid", "N/A")
+                mod_build_num = stage_info.get("build_number", build_num)
+                
+                meta_path = os.path.join(mod_dest_dir, "meta.json")
+                meta_data = {
+                    "uuid": mod_uuid,
+                    "build_number": mod_build_num,
+                    "module": mod["name"],
+                    "version": mod["version"],
+                    "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+                    "files": copied_files,
+                    "versions": {
+                        "kernel_module": context.config.get("KERNEL_MODULE_VERSION", "0.1"),
+                        "sdk": context.config.get("SDK_VERSION", "0.1.0"),
+                        "framework": "Currently In Progress",
+                        "daemon": context.config.get("DAEMON_VERSION", "0.1.0"),
+                        "userspace": context.config.get("USERSPACE_VERSION", "0.1.0")
+                    }
+                }
+                with open(meta_path, 'w') as f:
+                    json.dump(meta_data, f, indent=2)
+                Logger.log_success(f"Archived module '{mod['name']}' v{mod['version']} to {mod_dest_dir}")
+    except Exception as e:
+        Logger.log_warn(f"Failed to archive individual modules: {e}")
+
 class PipelineNode:
     def __init__(self, name, dependencies=None):
         self.name = name
         self.dependencies = dependencies or []
-        node_states[name] = {"status": "Pending", "details": "Waiting in queue...", "elapsed": None}
+        node_states[name] = {"status": "Pending", "details": "Waiting in queue...", "elapsed": None, "start_time": None, "end_time": None}
 
     def run(self, context):
         raise NotImplementedError
@@ -3223,6 +3534,7 @@ class Pipeline:
         # Increment build number and archive if not skipped
         if not getattr(context, 'skip_remaining', False):
             update_build_stats(context.workspace_dir, "Complete")
+            archive_modules_separately(context)
             try:
                 archive_dir = os.path.join(context.workspace_dir, ".archive")
                 os.makedirs(archive_dir, exist_ok=True)

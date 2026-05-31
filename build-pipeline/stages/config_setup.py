@@ -24,15 +24,18 @@ class CopyConfigurationSetupStage(PipelineNode):
         dest_dir = context.rootfs_dir
         Logger.log_step(f"Copying files from configuration_setup to rootfs (excluding README.md)...")
 
+        def copy_recursive(src, dst):
+            if os.path.isdir(src) and not os.path.islink(src):
+                os.makedirs(dst, exist_ok=True)
+                for item in os.listdir(src):
+                    copy_recursive(os.path.join(src, item), os.path.join(dst, item))
+            else:
+                copy_file_or_symlink(src, dst)
+
         for item in os.listdir(src_dir):
             if item == "README.md":
                 continue
             s_path = os.path.join(src_dir, item)
             d_path = os.path.join(dest_dir, item)
-
-            if os.path.isdir(s_path):
-                os.makedirs(d_path, exist_ok=True)
-                copy_dir_contents(s_path, d_path)
-            else:
-                copy_file_or_symlink(s_path, d_path)
+            copy_recursive(s_path, d_path)
         Logger.log_success("Configuration setup copied successfully.")
