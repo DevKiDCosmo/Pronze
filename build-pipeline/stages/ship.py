@@ -13,7 +13,7 @@ from common import PipelineNode, PipelineContext, Logger, update_node_status, co
 
 class ShipImageStage(PipelineNode):
     def __init__(self) -> None:
-        super().__init__("ShipImage", ["AssembleGPTImage"])
+        super().__init__("ShipImage", ["CleanOutput"])
 
     @override
     def run(self, context: PipelineContext) -> None:
@@ -42,7 +42,8 @@ class ShipImageStage(PipelineNode):
             if os.path.exists(src_path):
                 shipped_files.append(name)
 
-        if saved_hash == context.master_hash and os.path.exists(done_file):
+        repackage_active = getattr(context, "repackage_only_active", False)
+        if not repackage_active and saved_hash == context.master_hash and os.path.exists(done_file):
             # Verify they all exist in nochanges_dir so we can restore them if missing in output_dir
             all_cached_exist = True
             for name in shipped_files:

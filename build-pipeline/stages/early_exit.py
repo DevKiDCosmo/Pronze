@@ -43,7 +43,8 @@ class CheckEarlyExitStage(PipelineNode):
             with open(saved_hash_file, 'r') as f:
                 saved_hash = f.read().strip()
 
-        if saved_hash == context.master_hash and os.path.exists(done_flag_file):
+        repackage_active = getattr(context, "repackage_only_active", False)
+        if not repackage_active and saved_hash == context.master_hash and os.path.exists(done_flag_file):
             if os.path.exists(output_img):
                 Logger.log_success("Already compiled! Entire build pipeline skipped.")
                 context.skip_remaining = True

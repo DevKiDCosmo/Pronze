@@ -984,6 +984,17 @@ HTML_CONTENT = """<!DOCTYPE html>
         </div>
     </div>
 
+    <!-- Error logs overlay modal -->
+    <div class="modal-overlay" id="error-logs-modal">
+        <div class="modal-box" style="width: 85%; max-width: 850px;">
+            <div class="modal-title" id="error-logs-title">Stage Error Logs</div>
+            <pre id="error-logs-content" style="background: #111; color: #f8f9fa; padding: 1rem; font-family: 'JetBrains Mono', monospace; font-size: 0.8rem; overflow-x: auto; max-height: 450px; white-space: pre-wrap; word-wrap: break-word; border: 3px solid var(--border-color); box-shadow: inset 0 0 10px rgba(0,0,0,0.5); text-align: left;"></pre>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1rem;">
+                <button class="control-btn accent" onclick="hideErrorLogsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
     <div class="top-header">
         <h1>PRONZE OS BUILD SYSTEM</h1>
         <div class="status-badge" id="global-status">
@@ -1073,6 +1084,7 @@ HTML_CONTENT = """<!DOCTYPE html>
                 <div class="console-box-title">ADMIN CONTROLS</div>
                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
                     <button class="control-btn" onclick="triggerUpdateBuild()">UPDATE BUILD</button>
+                    <button class="control-btn" style="border-color: #2b8a3e; color: #2b8a3e; box-shadow: 2px 2px 0px #2b8a3e;" onclick="triggerRepackageBuild()">REPACKAGE ONLY</button>
                     <button class="control-btn accent" onclick="triggerRebuild()">REBUILD PIPELINE</button>
                     <button class="control-btn warning" onclick="triggerClean()">CLEAN WORKSPACE</button>
                     <button class="control-btn danger" onclick="triggerFclean()">FCLEAN (RESET ALL)</button>
@@ -1325,12 +1337,29 @@ HTML_CONTENT = """<!DOCTYPE html>
     <script>
         let selectedStageName = "DownloadTarballs";
         let buildRunning = false;
+        window.stageLogs = {};
         
         function selectStage(name) {
             selectedStageName = name;
             document.querySelectorAll(".node-card").forEach(el => el.classList.remove("selected"));
             const el = document.getElementById("node-" + name);
             if (el) el.classList.add("selected");
+        }
+
+        function showStageErrorLogs(name) {
+            const logs = window.stageLogs ? window.stageLogs[name] : null;
+            document.getElementById("error-logs-title").textContent = name + " Error Logs";
+            const contentEl = document.getElementById("error-logs-content");
+            if (logs) {
+                contentEl.textContent = logs;
+            } else {
+                contentEl.textContent = "No log records found for " + name;
+            }
+            document.getElementById("error-logs-modal").classList.add("active");
+        }
+
+        function hideErrorLogsModal() {
+            document.getElementById("error-logs-modal").classList.remove("active");
         }
 
         let timerInterval = null;
@@ -1550,6 +1579,25 @@ HTML_CONTENT = """<!DOCTYPE html>
                     onDone();
                 })
                 .catch(err => { alert("Update build failed: " + err); onDone(); });
+            });
+        }
+
+        function triggerRepackageBuild() {
+            performProtectedAction((pw, onDone) => {
+                fetch("/api/repackage", {
+                    method: "POST",
+                    headers: { "X-Portal-Password": pw }
+                })
+                .then(res => {
+                    if (res.status === 401) { onDone({status: 401}); return; }
+                    if (res.ok) {
+                        // Success: State will update dynamically via SSE
+                    } else {
+                        res.json().then(d => alert("Repackage failed: " + (d.error || "unknown")));
+                    }
+                    onDone();
+                })
+                .catch(err => { alert("Repackage failed: " + err); onDone(); });
             });
         }
 
@@ -2270,6 +2318,9 @@ HTML_CONTENT = """<!DOCTYPE html>
             if (data.stage_builds) {
                 window.stageBuilds = data.stage_builds;
             }
+            if (data.logs) {
+                window.stageLogs[data.name] = data.logs;
+            }
             
             if (!window.nodesState) window.nodesState = {};
             window.nodesState[data.name] = {
@@ -2337,6 +2388,15 @@ HTML_CONTENT = """<!DOCTYPE html>
             }
         });
  
+        evtSource.addEventListener("initial_logs", (e) => {
+            const logs = JSON.parse(e.data);
+            if (logs) {
+                for (const [name, logText] of Object.entries(logs)) {
+                    window.stageLogs[name] = logText;
+                }
+            }
+        });
+
         evtSource.addEventListener("analyzer_report", (e) => {
             const data = JSON.parse(e.data);
             document.getElementById("analyzer-total-files").textContent = data.total_files;
@@ -2417,6 +2477,44 @@ HTML_CONTENT = """<!DOCTYPE html>
             el.className = "node-card " + status.toLowerCase();
             if (name === selectedStageName) {
                 el.classList.add("selected");
+            }
+            
+            let inspectBtn = el.querySelector(".error-inspect-btn");
+            if (status === "Failed") {
+                if (!inspectBtn) {
+                    inspectBtn = document.createElement("button");
+                    inspectBtn.className = "error-inspect-btn";
+                    inspectBtn.innerHTML = "ℹ";
+                    inspectBtn.title = "View Compilation Errors";
+                    inspectBtn.style.position = "absolute";
+                    inspectBtn.style.top = "5px";
+                    inspectBtn.style.right = "5px";
+                    inspectBtn.style.background = "#f03e3e";
+                    inspectBtn.style.color = "#ffffff";
+                    inspectBtn.style.border = "none";
+                    inspectBtn.style.borderRadius = "50%";
+                    inspectBtn.style.width = "18px";
+                    inspectBtn.style.height = "18px";
+                    inspectBtn.style.fontSize = "0.7rem";
+                    inspectBtn.style.display = "flex";
+                    inspectBtn.style.alignItems = "center";
+                    inspectBtn.style.justifyContent = "center";
+                    inspectBtn.style.cursor = "pointer";
+                    inspectBtn.style.zIndex = "10";
+                    inspectBtn.style.outline = "none";
+                    inspectBtn.onclick = function(e) {
+                        e.stopPropagation();
+                        showStageErrorLogs(name);
+                    };
+                    el.style.position = "relative";
+                    el.appendChild(inspectBtn);
+                } else {
+                    inspectBtn.style.display = "flex";
+                }
+            } else {
+                if (inspectBtn) {
+                    inspectBtn.style.display = "none";
+                }
             }
             
             const statusEl = document.getElementById("status-" + name);
@@ -2780,6 +2878,44 @@ class SSEHandler(http.server.BaseHTTPRequestHandler):
                     return
                 Logger.log_info("Incremental/Update build requested from web view")
                 # Trigger build without clearing cache
+                build_queue.put((global_context, global_pipeline))
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.end_headers()
+                self.wfile.write(json.dumps({"status": "ok"}).encode('utf-8'))
+            else:
+                self.send_error(500, "Context/Pipeline not initialized")
+                
+        elif self.path == '/api/repackage':
+            if global_context and global_pipeline:
+                if build_active:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": "Build already active"}).encode('utf-8'))
+                    return
+                Logger.log_info("Repackage only requested from web view")
+                # Clear ONLY the master.done/master.hash flags to bypass CheckEarlyExit
+                master_done = os.path.join(global_context.nochanges_dir, "master.done")
+                master_hash = os.path.join(global_context.nochanges_dir, "master.hash")
+                if os.path.exists(master_done):
+                    try:
+                        os.remove(master_done)
+                    except Exception:
+                        pass
+                if os.path.exists(master_hash):
+                    try:
+                        os.remove(master_hash)
+                    except Exception:
+                        pass
+                # Also reset CheckEarlyExit state done flag
+                cee_done = os.path.join(global_context.nochanges_dir, "CheckEarlyExit.done")
+                if os.path.exists(cee_done):
+                    try:
+                        os.remove(cee_done)
+                    except Exception:
+                        pass
+                global_context.repackage_only_active = True
                 build_queue.put((global_context, global_pipeline))
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
@@ -3469,7 +3605,14 @@ class Pipeline:
         context.pipeline = self
         context.skip_remaining = False
         
+        repackage_mode = getattr(context, "repackage_only_active", False)
+        building_stages = ["CompileKernel", "CompileBusybox", "CompileS6", "CompileKernelModule", "CompileSDK", "CompileDaemon"]
+
         for node in self.execution_order:
+            if repackage_mode and node.name in building_stages:
+                update_node_status(node.name, "Skipped", "Skipped (Repackage Only)")
+                continue
+
             if getattr(context, 'skip_remaining', False):
                 update_node_status(node.name, "Skipped", "Cached (Early Exit)")
                 continue
@@ -3592,6 +3735,9 @@ class Pipeline:
                 Logger.log_success(f"Archived build #{build_number} (UUID: {build_uuid}) to {dest_dir}")
             except Exception as e:
                 Logger.log_warn(f"Failed to archive build: {e}")
+        
+        if hasattr(context, "repackage_only_active"):
+            context.repackage_only_active = False
 
 def run_cmd(cmd, cwd=None, env=None, input_data=None):
     stage_name = current_stage_name

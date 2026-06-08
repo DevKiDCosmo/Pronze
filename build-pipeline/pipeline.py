@@ -27,7 +27,8 @@ from stages import (
     PackageESPImageStage,
     AssembleGPTImageStage,
     ShipImageStage,
-    CopyConfigurationSetupStage
+    CopyConfigurationSetupStage,
+    CleanOutputStage
 )
 
 def main():
@@ -64,6 +65,7 @@ def main():
     pipeline.add_node(PackageBtrfsImageStage())
     pipeline.add_node(PackageESPImageStage())
     pipeline.add_node(AssembleGPTImageStage())
+    pipeline.add_node(CleanOutputStage())
     pipeline.add_node(ShipImageStage())
 
     pipeline.build_graph()

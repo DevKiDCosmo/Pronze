@@ -13,3 +13,4 @@ from .esp import PackageESPImageStage
 from .gpt import AssembleGPTImageStage
 from .ship import ShipImageStage
 from .config_setup import CopyConfigurationSetupStage
+from .clean_output import CleanOutputStage
